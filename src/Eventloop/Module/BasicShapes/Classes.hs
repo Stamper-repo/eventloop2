@@ -1,0 +1,283 @@
+module Eventloop.Module.BasicShapes.Classes where
+
+import Eventloop.Utility.Vectors
+import Eventloop.Module.BasicShapes.Types
+import qualified Eventloop.Module.Websocket.Canvas.Types as CT
+
+import Debug.Trace
+
+addBoundingBox :: BoundingBox -> BoundingBox -> BoundingBox
+addBoundingBox (BoundingBox p11 p21 p31 p41) (BoundingBox p12 p22 p32 p42) = BoundingBox (Point (xMin, yMin)) (Point (xMin, yMax)) (Point (xMax, yMax)) (Point (xMax, yMin))
+                                                        where
+                                                            allPoints = [p11, p21, p31, p41, p12, p22, p32, p42]
+                                                            xs = map (\(Point (x,y)) -> x) allPoints
+                                                            ys = map (\(Point (x,y)) -> y) allPoints
+                                                            xMin = minimum xs
+                                                            xMax = maximum xs
+                                                            yMin = minimum ys
+                                                            yMax = maximum ys
+
+foldBoundingBoxes :: (BoundingBox -> BoundingBox -> BoundingBox) -> [BoundingBox] -> BoundingBox
+foldBoundingBoxes _ [] = error "Tried to fold zero bounding boxes which is no bounding box. Undefined!"
+foldBoundingBoxes op (box:bs) = foldl op box bs
+              
+
+opOnBoundingBox :: (Point -> Point) -> BoundingBox -> BoundingBox
+opOnBoundingBox op (BoundingBox p1 p2 p3 p4) = BoundingBox (op p1)
+                                                           (op p2)
+                                                           (op p3)
+                                                           (op p4)
+ 
+ 
+allPolygonPoints :: AmountOfPoints -> Point -> Radius -> [Point]
+allPolygonPoints n centralPoint r | n < 1 = error "A polygon with 0 or more sides doesn't exist!"
+                                  | otherwise = [centralPoint |+| (toPoint (PolarCoord (r, angle)))  |angle <- anglesRads]
+                                where
+                                    anglePart = 360 / (fromIntegral n)
+                                    startAngle = 0
+                                    anglesDeg = filter (< 360) [startAngle, startAngle + anglePart..360]
+                                    anglesRads = map degreesToRadians anglesDeg
+                                    
+
+roundPoint :: Point -> CT.ScreenPoint
+roundPoint (Point (x, y)) = (round x, round y)
+
+
+roundColor :: Color -> CT.ScreenColor
+roundColor (r, b, g, a) = (round r, round b, round g, a)
+
+instance Translate BoundingBox where
+    translate pTrans = opOnBoundingBox ((|+|) pTrans)
+
+instance Translate Shape where
+    translate p b@(BaseShape {primitive=prim})          = b {primitive = translate p prim}
+    translate p (CompositeShape shapes Nothing rotM)    = CompositeShape shapes (Just p) rotM
+    translate p2 (CompositeShape shapes (Just p1) rotM) = CompositeShape shapes (Just $ p1 |+| p2) rotM
+    
+instance Translate Primitive where
+    translate p r@(Rectangle {translation=trans}) = r {translation = trans |+| p}
+    translate p c@(Circle {translation=trans})    = c {translation = trans |+| p}
+    translate p po@(Polygon {translation=trans})  = po {translation = trans |+| p}
+    translate p t@(Text {translation=trans})      = t {translation = trans |+| p}
+    translate pTrans (Line p1 p2)                 = Line (p1 |+| pTrans) (p2 |+| pTrans)
+    translate pTrans (MultiLine p1 p2 ops)        = MultiLine (p1 |+| pTrans) (p2 |+| pTrans) (map ((|+|) pTrans) ops)
+      
+      
+instance RotateLeftAround BoundingBox where               
+    rotateLeftAround rotatePoint aDeg box = opOnBoundingBox (rotateLeftAround rotatePoint aDeg) box
+    
+
+class (ToBoundingBox a) => ToCenter a where
+    toCenter :: a -> Point
+
+instance ToCenter Primitive where
+    toCenter = toCenter.toBoundingBox
+    
+instance ToCenter Shape where
+    toCenter = toCenter.toBoundingBox
+
+instance ToCenter BoundingBox where
+    toCenter (BoundingBox (Point (x1, y1)) (Point (x2, y2)) _ (Point (x4, y4))) = Point (x1 + 0.5 * w, y1 + 0.5 * h)
+                                                            where
+                                                                w = x4 - x1
+                                                                h = y2 - y1
+    
+    
+class ToBoundingBox a where
+    toBoundingBox :: a -> BoundingBox
+
+instance ToBoundingBox BoundingBox where
+    toBoundingBox box = box
+    
+instance ToBoundingBox Primitive where
+    toBoundingBox (Rectangle (Point (x, y)) (w, h) _) = BoundingBox (Point (x, y)) (Point (x, y + h)) (Point (x + w, y + h)) (Point (x + w, y))
+    toBoundingBox (Circle p r f) = trace ((++) "Circle P:" $ show (p |-| (Point (r, r)))) toBoundingBox (Rectangle (p |-| (Point (r, r))) (2 * r, 2 * r) f)
+    toBoundingBox (Polygon _ p r f) = toBoundingBox (Circle p r f)
+    toBoundingBox (Text _ _ _ p _) = BoundingBox p p p p
+    toBoundingBox (Line p1 p2) = toBoundingBox (MultiLine p1 p2 []) 
+    toBoundingBox (MultiLine p1 p2 ops) = BoundingBox (Point (xMin, yMin)) (Point (xMin, yMax)) (Point (xMax, yMax)) (Point (xMax, yMin))
+                                        where
+                                            points = p1:p2:ops
+                                            xs = map (\(Point (x, y)) -> x) points
+                                            ys = map (\(Point (x, y)) -> y) points
+                                            xMin = minimum xs
+                                            xMax = maximum xs
+                                            yMin = minimum ys
+                                            yMax = maximum ys
+                                        
+instance ToBoundingBox Shape where
+    toBoundingBox (BaseShape prim _ _ (Just rotation)) = rotatedBox
+                                                       where
+                                                           baseBox = toBoundingBox prim
+                                                           rotationPoint = findRotationPoint prim rotation
+                                                           (Rotation _ angle) = rotation
+                                                           rotatedBox = rotateLeftAround rotationPoint angle baseBox
+    toBoundingBox (BaseShape prim _ _ Nothing) = toBoundingBox prim
+    toBoundingBox (CompositeShape shapes (Just translation) (Just rotation)) = rotateLeftAround rotationPoint angle translatedBox
+                                                                            where
+                                                                               baseBox = toBoundingBox (CompositeShape shapes Nothing Nothing)
+                                                                               translatedBox = translate translation baseBox
+                                                                               rotationPoint = findRotationPoint translatedBox rotation
+                                                                               (Rotation _ angle) = rotation
+    toBoundingBox (CompositeShape shapes (Just translation) Nothing) = translate translation baseBox
+                                                                    where
+                                                                        baseBox = toBoundingBox (CompositeShape shapes Nothing Nothing)
+    toBoundingBox (CompositeShape shapes Nothing (Just rotation)) = rotateLeftAround rotationPoint angle baseBox
+                                                                where
+                                                                    baseBox = toBoundingBox (CompositeShape shapes Nothing Nothing)
+                                                                    rotationPoint = findRotationPoint baseBox rotation
+                                                                    (Rotation _ angle) = rotation
+    toBoundingBox (CompositeShape shapes Nothing Nothing) = foldBoundingBoxes addBoundingBox $ map toBoundingBox shapes
+
+{-
+Er is een probleem met waar de rotationpoint staat.
+De boundingbox van CompositeShapes ziet er vreemd uit.
+Het probleem kan zijn omdat er ergens nog de oude manier van boundingboxes staat, maar waar?
+Als de boundingbox weer correct is, wordt het rotationpoint ook weer correct.
+
+Daarnaast moet er nog even nagedacht worden over de translatie en rotatiepunt van op elkaar gestapelde
+composite shapes. Wordt de boundingbox lokaal uitgerekend? Wordt het rotatiepunt lokaal uitgerekent?
+Meerdere translaties op elkaar in canvas, kan dat of is de translatie steeds vanuit het oude origin?
+
+Fix 1: De boundingboxes van shapes in compositeshape samen voegen zonder de translatie van die compositeshape.
+Daarmee krijg je de locale boundingbox met de correcte center punt.
+
+Waarom ik een boundingbox met de verkeerde punten op de verkeerde plekken krijg, blijft een raadsel.
+Even kijken of foldBoundingBoxes goed werkt of niet
+
+//TODO NIET VERGETEN JAN TE MAILEN!!!
+-}                                                                                   
+
+findRotationPoint :: (ToCenter a) => a -> Rotation -> Point
+findRotationPoint a (Rotation AroundCenter _) = toCenter a
+findRotationPoint _ (Rotation (AroundPoint p) _) = p
+    
+  
+class ToCanvasOut a where
+    toCanvasOut :: a -> CT.CanvasOut
+    
+instance ToCanvasOut BasicShapesOut where
+    toCanvasOut (DrawShapes canvasId shapes) = CT.CanvasOperations canvasId canvasOperations
+                where
+                    canvasOperations = (concat.(map toCanvasOperations)) shapes
+                    
+  
+class ToCanvasOperations a where
+    toCanvasOperations :: a -> [CT.CanvasOperation]  
+
+instance ToCanvasOperations Shape where
+    toCanvasOperations (BaseShape prim lineThick color (Just rotation)) 
+        | angle == 0 = toCanvasOperations (BaseShape prim lineThick color Nothing)
+        | otherwise = [ CT.DoTransform CT.Save
+                      , CT.DoTransform (CT.Translate screenRotationPoint)
+                      , CT.DoTransform (CT.Rotate screenAngle)
+                      ] ++ movedDrawOperations ++
+                      [ CT.DoTransform CT.Restore
+                      ]
+        where
+            rotationPoint = findRotationPoint prim rotation
+            screenRotationPoint = roundPoint rotationPoint
+            movedPrim = translate (negateVector rotationPoint) prim 
+            movedDrawOperations = toCanvasOperations (BaseShape movedPrim lineThick color Nothing)
+            (Rotation _ angle) = rotation
+            screenAngle = round angle
+            
+    -- Rotation is broken. When we translated to rotationpoint, translation of prim should be adjusted accordingly (prim' = move prim (-rotationPoint))
+                                                                
+    toCanvasOperations (BaseShape (Text text fontF fontS p fillColor) lineThick strokeColor Nothing)  = [CT.DrawText canvasText p' textStroke textFill]
+                                                                                                      where
+                                                                                                          canvasText = CT.CanvasText text (CT.Font fontF $ round fontS) CT.AlignCenter
+                                                                                                          textFill = CT.TextFill (CT.CanvasColor screenFillColor)
+                                                                                                          textStroke = CT.TextStroke (round lineThick) (CT.CanvasColor screenStrokeColor)
+                                                                                                          screenStrokeColor = roundColor strokeColor
+                                                                                                          screenFillColor = roundColor fillColor
+                                                                                                          p' = roundPoint p
+
+    toCanvasOperations (BaseShape prim lineThick strokeColor Nothing) = case fillColorM of
+                                                                            (Just fillColor') -> [CT.DrawPath startingPoint screenPathParts pathStroke pathFill]
+                                                                                              where
+                                                                                                  screenFillColor = roundColor fillColor'
+                                                                                                  pathFill = CT.PathFill (CT.CanvasColor screenFillColor)
+                                                                            Nothing           -> [CT.DrawPath startingPoint screenPathParts pathStroke CT.NoPathFill]
+                                                                      where
+                                                                          (screenPathParts, startingPoint, fillColorM) = toScreenPathParts prim
+                                                                          pathStroke = CT.PathStroke (round lineThick) (CT.CanvasColor screenStrokeColor)
+                                                                          screenStrokeColor = roundColor strokeColor
+
+    toCanvasOperations (CompositeShape shapes Nothing Nothing) = (concat.(map toCanvasOperations)) shapes
+
+    toCanvasOperations c@(CompositeShape shapes (Just translation) (Just rotation))
+        | angle == 0 = toCanvasOperations (CompositeShape shapes (Just translation) Nothing)
+        | otherwise  = trace (show $ rotationPoint) $ trace (show $ toBoundingBox c) $ trace (show movedDrawOperations) [ CT.DoTransform CT.Save
+                       , CT.DoTransform (CT.Translate screenTotalTranslation)
+                       , CT.DoTransform (CT.Rotate screenAngle)
+                       ] ++ movedDrawOperations ++
+                       [ CT.DoTransform CT.Restore
+                       ]
+        where
+            rotationPoint = findRotationPoint c rotation
+            movedShapes = map (translate (negateVector rotationPoint)) shapes
+            movedDrawOperations = toCanvasOperations (CompositeShape movedShapes Nothing Nothing)
+            (Rotation _ angle) = rotation
+            screenAngle = round angle
+            screenTotalTranslation = roundPoint (translation |+| rotationPoint)
+            
+    toCanvasOperations c@(CompositeShape shapes Nothing (Just rotation))
+        | angle == 0 = toCanvasOperations (CompositeShape shapes Nothing Nothing)
+        | otherwise  = [ CT.DoTransform CT.Save
+                       , CT.DoTransform (CT.Translate screenRotationPoint)
+                       , CT.DoTransform (CT.Rotate screenAngle)
+                       ] ++ movedDrawOperations ++
+                       [ CT.DoTransform CT.Restore
+                       ]
+        where
+            rotationPoint = findRotationPoint c rotation
+            movedShapes = map (translate (negateVector rotationPoint)) shapes
+            movedDrawOperations = toCanvasOperations (CompositeShape movedShapes Nothing Nothing)
+            (Rotation _ angle) = rotation
+            screenAngle = round angle
+            screenRotationPoint = roundPoint rotationPoint
+            
+    toCanvasOperations (CompositeShape shapes (Just translate) Nothing)
+        = [ CT.DoTransform CT.Save
+          , CT.DoTransform (CT.Translate screenTranslationPoint)
+          ] ++ drawOperations ++
+          [ CT.DoTransform CT.Restore
+          ]
+        where
+            screenTranslationPoint = roundPoint translate
+            drawOperations = toCanvasOperations (CompositeShape shapes Nothing Nothing)
+          
+          
+class ToScreenPathPart a where
+    toScreenPathParts :: a -> ([CT.ScreenPathPart], CT.ScreenStartingPoint, Maybe FillColor)    
+    
+instance ToScreenPathPart Primitive where
+    toScreenPathParts (Rectangle p (w, h) f) = ([CT.Rectangle p' (w', h')], p', Just f)
+                                             where
+                                                 p' = roundPoint p
+                                                 w' = round w
+                                                 h' = round h
+    toScreenPathParts (Circle p r f) = ([CT.Arc (p', r') 0 360], p', Just f)
+                                     where
+                                         p' = roundPoint p
+                                         r' = round r
+    toScreenPathParts (Polygon n p r f) = (lines, screenPoint, Just f)
+                                        where
+                                            polygonPoints = allPolygonPoints n p r
+                                            (screenPoint:ps) = map roundPoint polygonPoints
+                                            lines = [CT.LineTo screenPoint' | screenPoint' <- (ps ++ [screenPoint])]
+    toScreenPathParts (Text {}) = error "Text is stupid and not implemented the same way in JS canvas"
+    toScreenPathParts (Line p1 p2) = ([CT.LineTo p2'], p1', Nothing)
+                                    where
+                                        p1' = roundPoint p1
+                                        p2' = roundPoint p2
+                                        
+    toScreenPathParts (MultiLine p1 p2 otherPoints) = (lines ++ [CT.MoveTo p1'], p1', Nothing)
+                                                    where
+                                                        allPoints = p1:p2:otherPoints
+                                                        (p1':otherPoints') = map roundPoint allPoints
+                                                        lines = [CT.LineTo p' | p' <- otherPoints']
+    
+    
+    
