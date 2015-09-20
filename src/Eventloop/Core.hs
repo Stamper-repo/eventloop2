@@ -16,6 +16,8 @@ import Eventloop.System.TeardownThread
 import Eventloop.Types.Exception
 import Eventloop.Types.System
 
+
+
 {- | Starts the entire system. First the setup phase is handled to setup the different
 concurrent resources. This is followed by the initialization phase where all modules are initialised.
 Than, the different worker threads are spawned and finally the system thread will go to work as the eventloop thread.
@@ -24,39 +26,40 @@ Shutting down is handled centrally through the system thread (main thread).
 If any of the threads(including the system thread) receive an exception, only the first exception is thrown to the system
 thread which will try to shutdown immediately. This exception is logged by the system thread.
 All other exceptions are logged by their respective threads. The system thread will than shutdown the worker
-threads. 
+threads. This is done by throwing exceptions to all workerthreads.
 -}
 startEventloopSystem :: EventloopSetupConfiguration progstateT
                      -> IO ()
 startEventloopSystem setupConfig
     = do
-        systemConfig <- setupEventloopSystemConfig setupConfig -- Setup
+        systemconfig <- setupEventloopSystemConfig setupConfig -- Setup
         let
-            moduleConfigs_ = moduleConfigs systemConfig
-            exceptions_ = exceptions systemConfig
-            isStoppingM_ = isStoppingM systemConfig
+            moduleConfigs_ = moduleConfigs systemconfig
+            exceptions_ = exceptions systemconfig
+            isStoppingM_ = isStoppingM systemconfig
         catch ( do
-                    startInitializing systemConfig -- Initialization
+                    startInitializing systemconfig -- Initialization
                     let
-                        retrieverThreadActions = threadActionsBasedOnModule systemConfig startRetrieving retrieverM moduleConfigs_
-                        outRouterAction = startOutRouting systemConfig
-                        senderThreadActions = threadActionsBasedOnModule systemConfig startSending senderConfigM moduleConfigs_
+                        retrieverThreadActions = threadActionsBasedOnModule systemconfig startRetrieving retrieverM moduleConfigs_
+                        outRouterAction = startOutRouting systemconfig
+                        senderThreadActions = threadActionsBasedOnModule systemconfig startSending senderConfigM moduleConfigs_
                     -- Spawn worker threads
-                    mapM_ (spawnWorkerThread systemConfig registerRetrieverThread) retrieverThreadActions
-                    spawnWorkerThread systemConfig registerOutRouterThread outRouterAction
-                    mapM_ (spawnWorkerThread systemConfig registerSenderThread) senderThreadActions
-                    startEventlooping systemConfig -- Eventlooping
+                    mapM_ (spawnWorkerThread systemconfig registerRetrieverThread) retrieverThreadActions
+                    spawnWorkerThread systemconfig registerOutRouterThread outRouterAction
+                    mapM_ (spawnWorkerThread systemconfig registerSenderThread) senderThreadActions
+                    startEventlooping systemconfig -- Eventlooping
               )
               ( \shutdownException -> do
                     swapMVar isStoppingM_ True -- If its already true, nothing happens, otherwise notify other threads the system thread is already shutting down
                     logException exceptions_ shutdownException
-                    
-                    workerThreads <- allWorkerThreads systemConfig
+
+                    -- Stop the worker threads
+                    workerThreads <- allWorkerThreads systemconfig
                     mapM_ throwShutdownExceptionToThread workerThreads
                     joinThreads workerThreads
-                    
-                    startTeardowning systemConfig
-                    startDisplayingExceptions systemConfig
+
+                    startTeardowning systemconfig
+                    startDisplayingExceptions systemconfig
               )
 
 {- |
@@ -70,19 +73,19 @@ threadActionsBasedOnModule :: EventloopSystemConfiguration progstateT
                            -> [EventloopModuleConfiguration]
                            -> [IO ()]
 threadActionsBasedOnModule _ _ _ [] = []
-threadActionsBasedOnModule systemConfig action getResourceFunc (moduleConfig:mcs)
+threadActionsBasedOnModule systemconfig action getResourceFunc (moduleConfig:mcs)
     = case (getResourceFunc moduleConfig) of
         Nothing         -> otherThreadActions
-        (Just resource) -> (action systemConfig (moduleConfig, resource)):otherThreadActions
+        (Just resource) -> (action systemconfig (moduleConfig, resource)):otherThreadActions
     where
-        otherThreadActions = threadActionsBasedOnModule systemConfig action getResourceFunc mcs
+        otherThreadActions = threadActionsBasedOnModule systemconfig action getResourceFunc mcs
 
         
 spawnWorkerThread :: EventloopSystemConfiguration progstateT
                   -> (EventloopSystemConfiguration progstateT -> Thread -> IO ())
                   -> IO ()
                   -> IO ()
-spawnWorkerThread systemConfig logAction action
+spawnWorkerThread systemconfig logAction action
     = do
         thread <- forkThread $ do
             catch action
@@ -91,45 +94,48 @@ spawnWorkerThread systemConfig logAction action
                             ShuttingDownException ->
                                 return ()
                             _                     -> do
+
                                 isStopping <- takeMVar isStoppingM_
                                 case isStopping of
                                     True -> logException exceptions_ exception
                                     False -> throwTo systemTid exception
                                 putMVar isStoppingM_ True
                     )
-        logAction systemConfig thread
+        logAction systemconfig thread
                                                     
     where
-        exceptions_ = exceptions systemConfig
-        systemTid = systemThreadId systemConfig
-        isStoppingM_ = isStoppingM systemConfig
+        exceptions_ = exceptions systemconfig
+        systemTid = systemThreadId systemconfig
+        isStoppingM_ = isStoppingM systemconfig
                     
  
 registerRetrieverThread :: EventloopSystemConfiguration progstateT
                         -> Thread
                         -> IO ()
-registerRetrieverThread systemConfig thread
+registerRetrieverThread systemconfig thread
     = do
         retrieverThreads <- takeMVar retrieverThreadsM_
         putMVar retrieverThreadsM_ (retrieverThreads ++ [thread])
     where
-        retrieverThreadsM_ = retrieverThreadsM systemConfig
+        retrieverThreadsM_ = retrieverThreadsM systemconfig
+
 
 registerOutRouterThread :: EventloopSystemConfiguration progstateT
                         -> Thread
                         -> IO ()
-registerOutRouterThread systemConfig thread
-    = putMVar (outRouterThreadM systemConfig) thread
-        
+registerOutRouterThread systemconfig thread
+    = putMVar (outRouterThreadM systemconfig) thread
+
+
 registerSenderThread :: EventloopSystemConfiguration progstateT
                         -> Thread
                         -> IO ()
-registerSenderThread systemConfig thread
+registerSenderThread systemconfig thread
     = do
         senderThreads <- takeMVar senderThreadsM_
         putMVar senderThreadsM_ (senderThreads ++ [thread])
     where
-        senderThreadsM_ = senderThreadsM systemConfig
+        senderThreadsM_ = senderThreadsM systemconfig
         
 
 throwShutdownExceptionToThread :: Thread -> IO ()
@@ -139,17 +145,39 @@ throwShutdownExceptionToThread thread
         
 allWorkerThreads :: EventloopSystemConfiguration progstateT
                  -> IO [Thread]
-allWorkerThreads systemConfig
+allWorkerThreads systemconfig
     = do
-        retrieverThreads <- readMVar retrieverThreadsM_
-        senderThreads <- readMVar senderThreadsM_
+        retrievers <- retrieverThreads systemconfig
+        outRouter <- outRouterThread systemconfig
+        senders <- senderThreads systemconfig
+        return (retrievers ++ outRouter ++ senders)
+
+
+retrieverThreads :: EventloopSystemConfiguration progstateT
+                 -> IO [Thread]
+retrieverThreads systemconfig
+    = readMVar retrieverThreadsM_
+    where
+        retrieverThreadsM_ = retrieverThreadsM systemconfig
+
+
+outRouterThread :: EventloopSystemConfiguration progstateT
+                -> IO [Thread]
+outRouterThread systemconfig
+    = do
         hasNotOutRouterThread <- isEmptyMVar outRouterThreadM_
         case hasNotOutRouterThread of
-            True                -> return (retrieverThreads ++ senderThreads)
-            False -> do
-                        outRouterThread <- readMVar outRouterThreadM_
-                        return (retrieverThreads ++ [outRouterThread] ++ senderThreads)
+                    True  -> return []
+                    False -> do
+                                outRouterThread <- readMVar outRouterThreadM_
+                                return [outRouterThread]
     where
-        retrieverThreadsM_ = retrieverThreadsM systemConfig
-        outRouterThreadM_ = outRouterThreadM systemConfig
-        senderThreadsM_ = senderThreadsM systemConfig
+        outRouterThreadM_ = outRouterThreadM systemconfig
+
+
+senderThreads :: EventloopSystemConfiguration progstateT
+                 -> IO [Thread]
+senderThreads systemconfig
+    = readMVar senderThreadsM_
+    where
+        senderThreadsM_ = senderThreadsM systemconfig

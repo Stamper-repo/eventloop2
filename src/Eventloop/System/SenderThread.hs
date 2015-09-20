@@ -34,8 +34,11 @@ sendOne :: EventloopModuleIdentifier
         -> IO ()
 sendOne moduleId sharedIOStateM_ iostateM sender outEvent
     = withSharedIOStateAndIOState sharedIOStateM_ iostateM
-        ( \exception -> 
-            throwIO (SendingException moduleId outEvent exception)
+        ( \exception ->
+            -- Wrap the exception if it isn't a ShuttingDownException
+            case (fromException exception) of
+                (Just ShuttingDownException) -> throwIO ShuttingDownException
+                _                            -> throwIO (SendingException moduleId outEvent exception)
         )
         ( \sharedIOState iostate ->
             sender sharedIOState iostate outEvent

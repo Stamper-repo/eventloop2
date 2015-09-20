@@ -43,3 +43,14 @@ outRouteOne targetIdsSenderQueues outEvent
     where
         targetModuleIdentifier = routeOutEvent outEvent
         targetSenderQueueM = lookup targetModuleIdentifier targetIdsSenderQueues
+
+
+outRouteBroadcastStop :: [(EventloopModuleIdentifier, SenderEventQueue)]
+                      -> IO ()
+outRouteBroadcastStop []
+    = return ()
+outRouteBroadcastStop targetIdsSenderQueues
+    = mapM_ broadcastAction (map snd targetIdsSenderQueues)
+    where
+        broadcastAction targetSenderQueue =
+            putInBlockingConcurrentQueue targetSenderQueue Stop
