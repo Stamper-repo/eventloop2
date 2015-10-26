@@ -16,8 +16,17 @@ startSending :: EventloopSystemConfiguration progstateT
              -> IO ()
 startSending systemConfig (moduleConfig, moduleSenderConfig)
     = forever $ do
-                    outEvent <- takeFromBlockingConcurrentQueue senderEventQueue_
-                    sendOne moduleId_ sharedIOStateM_ iostateM_ sender_ outEvent
+        -- putStrLn "#B"
+        outEvent <- takeFromBlockingConcurrentQueue senderEventQueue_
+        -- putStrLn "#C"
+        --putStrLn ("#: " ++ (show outEvent))
+        case outEvent of
+            Stop -> do
+                    -- putStrLn "#"
+                    throwIO RequestShutdownException
+            _    -> do
+                        sendOne moduleId_ sharedIOStateM_ iostateM_ sender_ outEvent
+                        -- putStrLn "#D"
     where
         moduleId_ = moduleId moduleConfig
         sharedIOStateM_ = sharedIOStateM systemConfig

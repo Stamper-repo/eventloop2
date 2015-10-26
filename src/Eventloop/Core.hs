@@ -3,7 +3,9 @@ module Eventloop.Core where
 import Control.Exception
 import Control.Concurrent.MVar
 import Control.Concurrent.ExceptionCollection
+import Control.Concurrent.Suspend.Lifted
 import Control.Concurrent.Thread
+import Control.Concurrent.Timer
 
 import Eventloop.System.DisplayExceptionThread
 import Eventloop.System.EventloopThread
@@ -26,7 +28,8 @@ Shutting down is handled centrally through the system thread (main thread).
 If any of the threads(including the system thread) receive an exception, only the first exception is thrown to the system
 thread which will try to shutdown immediately. This exception is logged by the system thread.
 All other exceptions are logged by their respective threads. The system thread will than shutdown the worker
-threads. This is done by throwing exceptions to all workerthreads.
+threads. This is done by throwing exceptions to all workerthreads except sender threads. These are sent a Stop event.
+If they take longer than 1 second, to finish up, they will also be thrown an exception.
 -}
 startEventloopSystem :: EventloopSetupConfiguration progstateT
                      -> IO ()
@@ -53,14 +56,44 @@ startEventloopSystem setupConfig
                     swapMVar isStoppingM_ True -- If its already true, nothing happens, otherwise notify other threads the system thread is already shutting down
                     logException exceptions_ shutdownException
 
-                    -- Stop the worker threads
-                    workerThreads <- allWorkerThreads systemconfig
-                    mapM_ throwShutdownExceptionToThread workerThreads
-                    joinThreads workerThreads
-
+                    -- Stop the retriever and outrouter threads
+                    retrievers <- retrieverThreads systemconfig
+                    outRouter <- outRouterThread systemconfig
+                    mapM_ throwShutdownExceptionToThread (retrievers ++ outRouter)
+                    putStrLn "After kill retrievers and outrouter"
+                    -- Kill the senders if need be
+                    senders <- senderThreads systemconfig
+                    --senderTimers <- mapM (terminateWithinOrThrowException 1000000 (toException ShuttingDownException)) senders
+                    putStrLn "After kill senders"
+                    putStrLn ("Senders: " ++ (show senders))
+                    -- Wait for all workers
+                    mapM_ (\thread -> do
+                            putStrLn (show thread)
+                            joinThread thread
+                            putStrLn "Joined"
+                          ) (retrievers ++ outRouter ++ senders)
+                    joinThreads (retrievers ++ outRouter ++ senders)
+                    putStrLn "After join"
+                    -- Stop all sender kill timers if they are still active
+                    --mapM_ stopTimer senderTimers
+                    putStrLn "After senders"
+                    -- Clean up the system
                     startTeardowning systemconfig
                     startDisplayingExceptions systemconfig
               )
+
+terminateWithinOrThrowException :: Int
+                                -> SomeException
+                                -> Thread
+                                -> IO TimerIO
+terminateWithinOrThrowException delay e t
+    = oneShotTimer ( do
+                       term <- isTerminated t
+                       case term of
+                        True  -> return ()
+                        False -> throwTo (getThreadId t) e
+                     )
+                     ((usDelay.fromIntegral) delay)
 
 {- |
 Utility function in order to create the different thread actions in the system.
@@ -94,12 +127,14 @@ spawnWorkerThread systemconfig logAction action
                             ShuttingDownException ->
                                 return ()
                             _                     -> do
-
+                                putStrLn "/"
                                 isStopping <- takeMVar isStoppingM_
-                                case isStopping of
-                                    True -> logException exceptions_ exception
-                                    False -> throwTo systemTid exception
                                 putMVar isStoppingM_ True
+                                case isStopping of
+                                    True -> do
+                                        putStrLn "#"
+                                        logException exceptions_ exception
+                                    False -> throwTo systemTid exception
                     )
         logAction systemconfig thread
                                                     
