@@ -6,6 +6,7 @@ import Control.Concurrent.ExceptionCollection
 import Control.Concurrent.Suspend.Lifted
 import Control.Concurrent.Thread
 import Control.Concurrent.Timer
+import Control.Concurrent.Datastructures.BlockingConcurrentQueue
 
 import Eventloop.System.DisplayExceptionThread
 import Eventloop.System.EventloopThread
@@ -15,6 +16,7 @@ import Eventloop.System.RetrieverThread
 import Eventloop.System.SenderThread
 import Eventloop.System.Setup
 import Eventloop.System.TeardownThread
+import Eventloop.Types.Events
 import Eventloop.Types.Exception
 import Eventloop.Types.System
 
@@ -54,29 +56,28 @@ startEventloopSystem setupConfig
               )
               ( \shutdownException -> do
                     swapMVar isStoppingM_ True -- If its already true, nothing happens, otherwise notify other threads the system thread is already shutting down
-                    logException exceptions_ shutdownException
+                    logException exceptions_ shutdownException -- Log the thrown exception
 
-                    -- Stop the retriever and outrouter threads
-                    retrievers <- retrieverThreads systemconfig
+                    -- Send a stop to the OutRouter
                     outRouter <- outRouterThread systemconfig
-                    mapM_ throwShutdownExceptionToThread (retrievers ++ outRouter)
-                    putStrLn "After kill retrievers and outrouter"
-                    -- Kill the senders if need be
+                    let
+                        eventloopConfig_ = eventloopConfig systemconfig
+                        outEventQueue_ = outEventQueue eventloopConfig_
+                    putInBlockingConcurrentQueue outEventQueue_ Stop
+
+                    -- Stop the retriever threads
+                    retrievers <- retrieverThreads systemconfig
+                    mapM_ throwShutdownExceptionToThread retrievers
+
+                    -- Kill the outrouter and senders if need be
                     senders <- senderThreads systemconfig
-                    --senderTimers <- mapM (terminateWithinOrThrowException 1000000 (toException ShuttingDownException)) senders
-                    putStrLn "After kill senders"
-                    putStrLn ("Senders: " ++ (show senders))
+                    senderTimers <- mapM (terminateWithinOrThrowException 1000000 (toException ShuttingDownException)) (outRouter ++ senders)
+
                     -- Wait for all workers
-                    mapM_ (\thread -> do
-                            putStrLn (show thread)
-                            joinThread thread
-                            putStrLn "Joined"
-                          ) (retrievers ++ outRouter ++ senders)
                     joinThreads (retrievers ++ outRouter ++ senders)
-                    putStrLn "After join"
-                    -- Stop all sender kill timers if they are still active
-                    --mapM_ stopTimer senderTimers
-                    putStrLn "After senders"
+                    -- Stop all outrouter and sender kill timers if they are still active
+                    mapM_ stopTimer senderTimers
+
                     -- Clean up the system
                     startTeardowning systemconfig
                     startDisplayingExceptions systemconfig
@@ -127,13 +128,13 @@ spawnWorkerThread systemconfig logAction action
                             ShuttingDownException ->
                                 return ()
                             _                     -> do
-                                putStrLn "/"
                                 isStopping <- takeMVar isStoppingM_
                                 putMVar isStoppingM_ True
                                 case isStopping of
                                     True -> do
-                                        putStrLn "#"
-                                        logException exceptions_ exception
+                                        case exception of
+                                            RequestShutdownException -> return ()
+                                            _                            -> logException exceptions_ exception
                                     False -> throwTo systemTid exception
                     )
         logAction systemconfig thread

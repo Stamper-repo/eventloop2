@@ -95,9 +95,7 @@ hasMessage recvBuffer = do
                             
                             
 takeMessage :: ReceiveBuffer -> IO Message
-takeMessage recvBuffer = do
-                            message <- takeMVar recvBuffer
-                            return message
+takeMessage recvBuffer = takeMVar recvBuffer
                                 
                                 
 writeMessage :: Connection -> Message -> IO ()

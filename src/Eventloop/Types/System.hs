@@ -62,7 +62,7 @@ data EventloopConfiguration progstateT
                              , outEventQueue :: OutEventQueue
                              }
                                
-                               
+
 data EventloopSystemConfiguration progstateT
     = EventloopSystemConfiguration { eventloopConfig :: EventloopConfiguration progstateT
                                    , moduleConfigs :: [EventloopModuleConfiguration]
