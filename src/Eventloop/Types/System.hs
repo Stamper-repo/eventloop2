@@ -12,6 +12,7 @@ import Eventloop.Module.Websocket.Keyboard.Types
 import Eventloop.Module.Websocket.Mouse.Types
 import Eventloop.Module.Websocket.Canvas.Types
 import Eventloop.Module.File.Types
+import Eventloop.Module.StatefulGraphics.Types
 import Eventloop.Module.StdIn.Types
 import Eventloop.Module.StdOut.Types
 import Eventloop.Module.Timer.Types
@@ -131,4 +132,6 @@ data IOState = MouseState { receiveBuffer        :: BWS.BufferedReceiveBuffer
              | FileState { newFileInEvents :: [FileIn]
                          , opened          :: [OpenFile]
                          }
+             | StatefulGraphicsState { states :: GraphicsStates
+                                     }
              | NoState

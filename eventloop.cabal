@@ -6,7 +6,7 @@ name:                eventloop
 -- PVP summary:      +-+------- breaking API changes
 --                   | | +----- non-breaking API additions
 --                   | | | +--- code changes with no API change
-version:             0.5.0.0
+version:             0.5.1.0
 synopsis:            A different take on an IO system. Based on Amanda's IO loop, this eventloop takes a function that maps input events to output events. It can easily be extended by modules that represent IO devices or join multiple modules together.
 description:         A different take on an IO system. Based on Amanda's IO loop, this eventloop takes a function that maps input events to output events. It can easily be extended by modules that represent IO devices or join multiple modules together.
                      Each module exists of a initialize and teardown function that are both called once at startup and shutting down. During run-time, a module can provice a preprocessor function (which transforms input events before they get to the eventloop),
@@ -40,6 +40,7 @@ library
                        Eventloop.Module.DrawTrees,
                        Eventloop.Module.BasicShapes,
                        Eventloop.Module.File,
+                       Eventloop.Module.StatefulGraphics,
                        Eventloop.Module.StdIn,
                        Eventloop.Module.StdOut, 
                        Eventloop.Module.Timer,
@@ -69,6 +70,8 @@ library
                        Eventloop.Module.BasicShapes.Classes,
                        Eventloop.Module.File.File,
                        Eventloop.Module.File.Types,
+                       Eventloop.Module.StatefulGraphics.StatefulGraphics,
+                       Eventloop.Module.StatefulGraphics.Types,
                        Eventloop.Module.StdIn.StdIn,
                        Eventloop.Module.StdIn.Types,
                        Eventloop.Module.StdOut.StdOut,

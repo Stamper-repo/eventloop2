@@ -2,6 +2,7 @@ module Eventloop.Module.DrawTrees.DrawTrees
     ( setupDrawTreesModuleConfiguration
     , drawTreesModuleIdentifier
     , drawTreesPostProcessor
+    , showGeneralTreeList
     , rbExampleTree
     , roseExampleTree
     ) where

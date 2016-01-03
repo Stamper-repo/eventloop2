@@ -10,6 +10,7 @@ import Eventloop.Types.Common
 import Eventloop.Types.Events
 import Eventloop.Types.System
 
+setupBasicShapesModuleConfiguration :: EventloopSetupModuleConfiguration
 setupBasicShapesModuleConfiguration = ( EventloopSetupModuleConfiguration
                                             basicShapesModuleIdentifier
                                             Nothing

@@ -6,6 +6,7 @@ import Eventloop.Module.Websocket.Canvas.Types
 import Eventloop.Module.DrawTrees.Types
 import Eventloop.Module.BasicShapes.Types
 import Eventloop.Module.File.Types
+import Eventloop.Module.StatefulGraphics.Types
 import Eventloop.Module.StdIn.Types
 import Eventloop.Module.StdOut.Types
 import Eventloop.Module.Timer.Types
@@ -31,5 +32,6 @@ data Out = OutFile FileOut
          | OutBasicShapes BasicShapesOut
          | OutDrawTrees DrawTreesOut
          | OutGraphs GraphsOut
+         | OutStatefulGraphics CanvasId [StatefulGraphicsOut]
          | Stop
          deriving (Eq, Show)

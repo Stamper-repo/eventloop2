@@ -145,7 +145,6 @@ Daarmee krijg je de locale boundingbox met de correcte center punt.
 Waarom ik een boundingbox met de verkeerde punten op de verkeerde plekken krijg, blijft een raadsel.
 Even kijken of foldBoundingBoxes goed werkt of niet
 
-//TODO NIET VERGETEN JAN TE MAILEN!!!
 -}                                                                                   
 
 findRotationPoint :: (ToCenter a) => a -> Rotation -> Point
