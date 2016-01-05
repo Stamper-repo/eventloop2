@@ -10,6 +10,7 @@ module Eventloop.Module.Websocket.Keyboard.Keyboard
 import Data.Aeson
 import Data.Maybe
 import Control.Applicative
+import Control.Concurrent.MVar
 import Control.Concurrent.SafePrint
 import qualified Data.ByteString.Lazy.Char8 as BL
 
@@ -18,7 +19,7 @@ import Eventloop.Types.Events
 import Eventloop.Types.System
 import Eventloop.Module.Websocket.Keyboard.Types
 import Eventloop.Utility.Config
-import qualified Eventloop.Utility.BufferedWebsockets as WS
+import Eventloop.Utility.Websockets
 
 
 setupKeyboardModuleConfiguration :: EventloopSetupModuleConfiguration
@@ -42,28 +43,38 @@ instance FromJSON Keyboard where
 
     
 keyboardInitializer :: Initializer
-keyboardInitializer sharedIO
+keyboardInitializer sharedConst sharedIO
     = do
-        (recvBuffer, clientSocket, clientConn, serverSock, bufferedReaderThread) <- WS.setupWebsocketConnection ipAddress  keyboardPort
-        safePrintLn (safePrintToken sharedIO) "Keyboard connection successfull"
-        return (sharedIO, KeyboardState recvBuffer clientSocket clientConn serverSock bufferedReaderThread)
+        (clientSocket, clientConn, serverSock) <- setupWebsocketConnection ipAddress  keyboardPort
+        safePrintLn (safePrintToken sharedConst) "Keyboard connection successfull"
+        return (sharedConst, sharedIO, KeyboardConstants clientSocket clientConn serverSock, NoState)
 
                             
 keyboardEventRetriever :: EventRetriever
-keyboardEventRetriever sharedIO keyboardState = do
-                                                    messages <- WS.takeMessages (receiveBuffer keyboardState)
-                                                    return (sharedIO, keyboardState, map ((.) InKeyboard messageToKeyboardIn) messages)
-                                        
+keyboardEventRetriever sharedConst sharedIOT ioConst ioStateT
+    = do
+        messageM <- takeMessage sock conn
+        case messageM of
+            Nothing -> return []
+            (Just message) -> return [InKeyboard $ messageToKeyboardIn message]
+    where
+        sock = clientSocket ioConst
+        conn = clientConnection ioConst
 
-messageToKeyboardIn :: WS.Message -> Keyboard
+
+messageToKeyboardIn :: Message -> Keyboard
 messageToKeyboardIn message = fromJust.decode $ BL.pack message
 
 
 keyboardTeardown :: Teardown
-keyboardTeardown sharedIO ks
+keyboardTeardown sharedConst sharedIO ioConst ioState
     = do
-        WS.closeWebsocketConnection (serverSocket ks) (clientSocket ks) (clientConnection ks) (bufferedReaderThread ks)
+        closeWebsocketConnection serverSock clientSock conn
         return sharedIO
+    where
+        serverSock = serverSocket ioConst
+        clientSock = clientSocket ioConst
+        conn = clientConnection ioConst
 
 
 

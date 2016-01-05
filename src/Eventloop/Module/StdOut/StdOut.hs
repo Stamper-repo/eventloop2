@@ -6,6 +6,7 @@ module Eventloop.Module.StdOut.StdOut
 
 import System.IO
 
+import Control.Concurrent.MVar
 import Control.Concurrent.SafePrint
 
 import Eventloop.Module.StdOut.Types
@@ -29,7 +30,9 @@ stdOutModuleIdentifier = "stdout"
 
 
 stdOutEventSender :: EventSender
-stdOutEventSender sharedIO state (OutStdOut (StdOutMessage str)) = do
-                                                                    safePrint (safePrintToken sharedIO) str
-                                                                    hFlush stdout
-                                                                    return (sharedIO, state)
+stdOutEventSender sharedConst sharedIOT ioConst ioStateT (OutStdOut (StdOutMessage str))
+    = do
+        safePrint token str
+        hFlush stdout
+    where
+        token = safePrintToken sharedConst

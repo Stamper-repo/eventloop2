@@ -8,6 +8,8 @@ module Eventloop.Module.StdIn.StdIn
 
 import System.IO
 import Data.String
+import Control.Concurrent.Datastructures.BlockingConcurrentQueue
+import Control.Concurrent.STM
 
 import Eventloop.Module.StdIn.Types
 import Eventloop.Types.Common
@@ -31,40 +33,44 @@ stdInModuleIdentifier = "stdin"
 
 
 stdInInitializer :: Initializer
-stdInInitializer sharedIO
-    = return (sharedIO, StdInState [])
+stdInInitializer sharedConst sharedIO
+    = do
+        inQueue <- createBlockingConcurrentQueue
+        return (sharedConst, sharedIO, StdInConstants inQueue, NoState)
 
     
 stdInEventRetriever :: EventRetriever
-stdInEventRetriever sharedIO (StdInState events)
-    = return (sharedIO, StdInState [], inEvents)
+stdInEventRetriever sharedConst sharedIOT ioConst ioStateT
+    = do
+        inEvents <- takeAllFromBlockingConcurrentQueue inQueue
+        return (map InStdIn inEvents)
     where
-        inEvents = map InStdIn events
+        inQueue = stdInInQueue ioConst
 
         
 stdInEventSender :: EventSender
-stdInEventSender sharedIO stdInState (OutStdIn a)
+stdInEventSender sharedConst sharedIOT ioConst ioStateT (OutStdIn a)
     = do
-        stdInState' <- stdInEventSender' stdInState a
-        return (sharedIO, stdInState')
+        inEvents <- stdInEventSender' a
+        putAllInBlockingConcurrentQueue inQueue inEvents
+    where
+        inQueue = stdInInQueue ioConst
         
         
-stdInEventSender' :: IOState -> StdInOut -> IO IOState
-stdInEventSender' stdInState StdInReceiveContents
-    = doStdInGet stdInState linedGetContents StdInReceivedContents
+stdInEventSender' :: StdInOut -> IO [StdInIn]
+stdInEventSender' StdInReceiveContents
+    = doStdInGet linedGetContents StdInReceivedContents
     where
         linedGetContents = (getContents >>= (\strContents -> return $ lines strContents))
                   
-stdInEventSender' stdInState StdInReceiveLine = doStdInGet stdInState getLine StdInReceivedLine
-stdInEventSender' stdInState StdInReceiveChar = doStdInGet stdInState getChar StdInReceivedChar
+stdInEventSender' StdInReceiveLine
+    = doStdInGet getLine StdInReceivedLine
+stdInEventSender' StdInReceiveChar
+    = doStdInGet getChar StdInReceivedChar
                                                 
                                                 
-doStdInGet :: IOState -> (IO a) -> (a -> StdInIn) -> IO IOState
-doStdInGet stdInState source typeEvent = do
-                                            let
-                                                events = newStdInInEvents stdInState
-                                            content <- source
-                                            let
-                                                event = typeEvent content
-                                                events' = events ++ [event]
-                                            return (stdInState {newStdInInEvents = events'})
+doStdInGet :: (IO a) -> (a -> StdInIn) -> IO [StdInIn]
+doStdInGet source typeEvent
+    = do
+        content <- source
+        return ([typeEvent content])

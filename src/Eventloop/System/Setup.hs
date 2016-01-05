@@ -5,6 +5,7 @@ module Eventloop.System.Setup
 import Control.Concurrent
 import Control.Concurrent.ExceptionCollection
 import Control.Concurrent.MVar
+import Control.Concurrent.STM
 import Control.Concurrent.Datastructures.BlockingConcurrentQueue
 
 import Eventloop.DefaultConfiguration
@@ -17,8 +18,9 @@ setupEventloopSystemConfig setupConfig
     = do
         eventloopConfig_ <- setupEventloopConfiguration setupConfig
         moduleConfigurations_ <- mapM setupEventloopModuleConfig (setupModuleConfigurations setupConfig)
+        sharedIOConst <- setupSharedIOConstants
         sharedIOState_ <- setupSharedIOState
-        sharedIOStateM_ <- newMVar sharedIOState_
+        sharedIOStateT_ <- newTVarIO sharedIOState_
         systemThreadId_ <- myThreadId
         retrieverThreadsM_ <- newMVar []
         outRouterThreadM_ <- newEmptyMVar
@@ -29,7 +31,8 @@ setupEventloopSystemConfig setupConfig
         return ( EventloopSystemConfiguration
                     eventloopConfig_
                     moduleConfigurations_
-                    sharedIOStateM_
+                    sharedIOConst
+                    sharedIOStateT_
                     systemThreadId_
                     retrieverThreadsM_
                     outRouterThreadM_
@@ -43,12 +46,12 @@ setupEventloopConfiguration :: EventloopSetupConfiguration progstateT
                             -> IO (EventloopConfiguration progstateT)
 setupEventloopConfiguration setupConfig
     = do
-        progstateM_ <- newMVar (beginProgstate setupConfig)
+        progStateT_ <- newTVarIO (beginProgstate setupConfig)
         inEventQueue_ <- createBlockingConcurrentQueue
         outEventQueue_ <- createBlockingConcurrentQueue
         
         return ( EventloopConfiguration
-                    progstateM_
+                    progStateT_
                     (eventloopF setupConfig)
                     inEventQueue_
                     outEventQueue_
@@ -59,12 +62,13 @@ setupEventloopModuleConfig :: EventloopSetupModuleConfiguration
                            -> IO EventloopModuleConfiguration
 setupEventloopModuleConfig setupModuleConfig
     = do
-        iostateM <- newMVar NoState
+        ioStateT <- newTVarIO NoState
         senderConfig <- setupEventloopModuleSenderConfiguration (eventSenderF setupModuleConfig)
         
         return ( EventloopModuleConfiguration
                     (moduleIdentifier setupModuleConfig)
-                    iostateM
+                    NoConstants
+                    ioStateT
                     (initializerF setupModuleConfig)
                     (eventRetrieverF setupModuleConfig)
                     (preprocessorF setupModuleConfig)

@@ -9,6 +9,7 @@ module Eventloop.Module.Websocket.Mouse.Mouse
 
 import Control.Applicative
 import Control.Monad
+import Control.Concurrent.MVar
 import Control.Concurrent.SafePrint
 import Data.Aeson
 import Data.Aeson.Types
@@ -19,7 +20,7 @@ import Eventloop.Module.Websocket.Mouse.Types
 import Eventloop.Types.Common
 import Eventloop.Types.Events
 import Eventloop.Types.System
-import qualified Eventloop.Utility.BufferedWebsockets as WS
+import Eventloop.Utility.Websockets
 import Eventloop.Utility.Config
 import Eventloop.Utility.Vectors
 
@@ -86,26 +87,35 @@ instance FromJSON Point where
     
     
 mouseInitializer :: Initializer
-mouseInitializer sharedIO
+mouseInitializer sharedConst sharedIO
     = do
-        (recvBuffer, clientSocket, clientConn, serverSock, bufferedReaderThread) <- WS.setupWebsocketConnection ipAddress  mousePort
-        safePrintLn (safePrintToken sharedIO) "Mouse connection succesfull"
-        return (sharedIO, MouseState recvBuffer clientSocket clientConn serverSock bufferedReaderThread)
+        (clientSocket, clientConn, serverSock) <- setupWebsocketConnection ipAddress  mousePort
+        safePrintLn (safePrintToken sharedConst) "Mouse connection succesfull"
+        return (sharedConst, sharedIO, MouseConstants clientSocket clientConn serverSock, NoState)
 
 
 mouseEventRetriever :: EventRetriever
-mouseEventRetriever sharedIO mouseState = do
-                                            messages <- WS.takeMessages (receiveBuffer mouseState)
-                                            return (sharedIO, mouseState, map ((.) InMouse messageToMouseIn) messages)
+mouseEventRetriever sharedConst sharedIOT ioConst ioStateT
+    = do
+        messageM <- takeMessage sock conn
+        case messageM of
+            Nothing        -> return []
+            (Just message) -> return [InMouse $ messageToMouseIn message]
+    where
+        sock = clientSocket ioConst
+        conn = clientConnection ioConst
 
-                                    
-messageToMouseIn :: WS.Message -> MouseIn
+
+messageToMouseIn :: Message -> MouseIn
 messageToMouseIn message = fromJust.decode $ BL.pack message
 
 
 mouseTeardown :: Teardown
-mouseTeardown sharedIO ms
+mouseTeardown sharedConst sharedIO ioConst ioStateT
     = do
-        WS.closeWebsocketConnection (serverSocket ms) (clientSocket ms) (clientConnection ms) (bufferedReaderThread ms)
+        closeWebsocketConnection serverSock clientSock conn
         return sharedIO
-
+    where
+        serverSock = serverSocket ioConst
+        clientSock = clientSocket ioConst
+        conn = clientConnection ioConst

@@ -1,5 +1,6 @@
 module Eventloop.Module.Graphs.Graphs where
 
+
 import Eventloop.Module.Graphs.Types
 import qualified Eventloop.Module.Websocket.Canvas as C
 import qualified Eventloop.Module.Websocket.Mouse as M
@@ -64,38 +65,38 @@ onNode (n@(_, (nx, ny), _):ns) (x,y) | difference <= nodeRadius = Just n
 
 -- | Abstracts the standardized 'EventLoop.Types.EventTypes' to 'GraphsIn'
 graphsPreProcessor :: PreProcessor
-graphsPreProcessor shared io (InMouse (M.Mouse M.MouseCanvas 1 event (Point p)))
-    | x >=0 && y >= 0 && y <= canvasGraphsHeight && x <= canvasGraphsWidth = return (shared, io, [InGraphs $ Mouse event p])
-    | otherwise = return (shared, io, [])
+graphsPreProcessor sharedConst sharedIOT ioConst ioStateT (InMouse (M.Mouse M.MouseCanvas 1 event (Point p)))
+    | x >=0 && y >= 0 && y <= canvasGraphsHeight && x <= canvasGraphsWidth = return [InGraphs $ Mouse event p]
+    | otherwise = return []
     where
         (x, y) = p
     
-graphsPreProcessor shared io k@(InKeyboard (K.Key key))
-    = return (shared, io, [k, InGraphs $ Key key])
+graphsPreProcessor sharedConst sharedIOT ioConst ioStateT k@(InKeyboard (K.Key key))
+    = return [k, InGraphs $ Key key]
     
-graphsPreProcessor shared io inEvent 
-    = return (shared, io, [inEvent])
+graphsPreProcessor sharedConst sharedIOT ioConst ioStateT inEvent
+    = return [inEvent]
 
 
 -- | Abstracts 'GraphsOut' back to 'BasicShapes' and 'Canvas' events
 graphsPostProcessor :: PostProcessor
-graphsPostProcessor shared io (OutGraphs SetupGraphs)
-    = return (shared, io, [ OutCanvas $ C.SetupCanvas canvasIdGraphs  1 roundDimCanvasGraphs (C.CSSPosition C.CSSFromCenter (C.CSSPercentage 50, C.CSSPercentage 50))
-                          , OutCanvas $ C.SetupCanvas canvasIdInstructions 2 roundDimCanvasInstr (C.CSSPosition C.CSSFromCenter (C.CSSPercentage 50, C.CSSPercentage 50))
-                          ])
+graphsPostProcessor sharedConst sharedIOT ioConst ioStateT (OutGraphs SetupGraphs)
+    = return [ OutCanvas $ C.SetupCanvas canvasIdGraphs  1 roundDimCanvasGraphs (C.CSSPosition C.CSSFromCenter (C.CSSPercentage 50, C.CSSPercentage 50))
+             , OutCanvas $ C.SetupCanvas canvasIdInstructions 2 roundDimCanvasInstr (C.CSSPosition C.CSSFromCenter (C.CSSPercentage 50, C.CSSPercentage 50))
+             ]
         
                    
-graphsPostProcessor shared io (OutGraphs (DrawGraph graph))
-    = return (shared, io, [ OutCanvas $ C.CanvasOperations canvasIdGraphs [C.Clear C.ClearCanvas]
-                          , OutBasicShapes $ BS.DrawShapes canvasIdGraphs shapes
-                          ])
+graphsPostProcessor sharedConst sharedIOT ioConst ioStateT (OutGraphs (DrawGraph graph))
+    = return [ OutCanvas $ C.CanvasOperations canvasIdGraphs [C.Clear C.ClearCanvas]
+             , OutBasicShapes $ BS.DrawShapes canvasIdGraphs shapes
+             ]
     where
         shapes = graphToShapes graph
     
-graphsPostProcessor shared io (OutGraphs (Instructions is))
-    = return (shared, io, [ OutCanvas $ C.CanvasOperations canvasIdInstructions [C.Clear C.ClearCanvas]
-                          , OutBasicShapes $ BS.DrawShapes canvasIdInstructions shapes
-                          ])
+graphsPostProcessor sharedConst sharedIOT ioConst ioStateT (OutGraphs (Instructions is))
+    = return [ OutCanvas $ C.CanvasOperations canvasIdInstructions [C.Clear C.ClearCanvas]
+             , OutBasicShapes $ BS.DrawShapes canvasIdInstructions shapes
+             ]
     where
         startPLine  = Point (0, 0)
         endPLine    = Point (canvasGraphsWidth, 0)
@@ -109,8 +110,8 @@ graphsPostProcessor shared io (OutGraphs (Instructions is))
         instructionShapes = map (\(line, top) -> textShape line $ Point (0.5 * canvasGraphsWidth, top)) isAndHeights
         shapes            = [BS.CompositeShape (lineShape:instructionShapes) (Just (Point (0, instructionsBeginAt))) Nothing]
 
-graphsPostProcessor shared io out 
-    = return (shared, io, [out])  
+graphsPostProcessor sharedConst sharedIOT ioConst ioStateT out
+    = return [out]
   
 -- | Translates color datatype to RGBA codes
 colorToRGBAColor :: Color -> BS.Color

@@ -37,51 +37,61 @@ startEventloopSystem :: EventloopSetupConfiguration progstateT
                      -> IO ()
 startEventloopSystem setupConfig
     = do
-        systemconfig <- setupEventloopSystemConfig setupConfig -- Setup
-        let
-            moduleConfigs_ = moduleConfigs systemconfig
-            exceptions_ = exceptions systemconfig
-            isStoppingM_ = isStoppingM systemconfig
-        catch ( do
-                    startInitializing systemconfig -- Initialization
-                    let
-                        retrieverThreadActions = threadActionsBasedOnModule systemconfig startRetrieving retrieverM moduleConfigs_
-                        outRouterAction = startOutRouting systemconfig
-                        senderThreadActions = threadActionsBasedOnModule systemconfig startSending senderConfigM moduleConfigs_
-                    -- Spawn worker threads
-                    mapM_ (spawnWorkerThread systemconfig registerRetrieverThread) retrieverThreadActions
-                    spawnWorkerThread systemconfig registerOutRouterThread outRouterAction
-                    mapM_ (spawnWorkerThread systemconfig registerSenderThread) senderThreadActions
-                    startEventlooping systemconfig -- Eventlooping
-              )
-              ( \shutdownException -> do
-                    swapMVar isStoppingM_ True -- If its already true, nothing happens, otherwise notify other threads the system thread is already shutting down
-                    logException exceptions_ shutdownException -- Log the thrown exception
+        systemConfig <- setupEventloopSystemConfig setupConfig -- Setup
+        systemConfig' <- catch (startInitializing systemConfig) -- Initialization
+                               (\shutdownException -> do
+                                    logException (exceptions systemConfig) shutdownException -- Log the thrown exception
+                                    startTeardowning systemConfig
+                                    startDisplayingExceptions systemConfig
+                                    return systemConfig
+                               )
+        failed <- hasExceptions (exceptions systemConfig')
+        case failed of
+            True -> return ()
+            False -> do
+                let
+                    moduleConfigs_ = moduleConfigs systemConfig'
+                    exceptions_ = exceptions systemConfig'
+                    isStoppingM_ = isStoppingM systemConfig'
+                catch ( do
+                            let
+                                retrieverThreadActions = threadActionsBasedOnModule systemConfig' startRetrieving retrieverM moduleConfigs_
+                                outRouterAction = startOutRouting systemConfig'
+                                senderThreadActions = threadActionsBasedOnModule systemConfig' startSending senderConfigM moduleConfigs_
+                            -- Spawn worker threads
+                            mapM_ (spawnWorkerThread systemConfig' registerRetrieverThread) retrieverThreadActions
+                            spawnWorkerThread systemConfig' registerOutRouterThread outRouterAction
+                            mapM_ (spawnWorkerThread systemConfig' registerSenderThread) senderThreadActions
+                            startEventlooping systemConfig' -- Eventlooping
+                      )
+                      ( \shutdownException -> do
+                            swapMVar isStoppingM_ True -- If its already true, nothing happens, otherwise notify other threads the system thread is already shutting down
+                            logException exceptions_ shutdownException -- Log the thrown exception
 
-                    -- Send a stop to the OutRouter
-                    outRouter <- outRouterThread systemconfig
-                    let
-                        eventloopConfig_ = eventloopConfig systemconfig
-                        outEventQueue_ = outEventQueue eventloopConfig_
-                    putInBlockingConcurrentQueue outEventQueue_ Stop
+                            -- Send a stop to the OutRouter
+                            outRouter <- outRouterThread systemConfig'
+                            let
+                                eventloopConfig_ = eventloopConfig systemConfig'
+                                outEventQueue_ = outEventQueue eventloopConfig_
+                            putInBlockingConcurrentQueue outEventQueue_ Stop
 
-                    -- Stop the retriever threads
-                    retrievers <- retrieverThreads systemconfig
-                    mapM_ throwShutdownExceptionToThread retrievers
+                            -- Stop the retriever threads
+                            retrievers <- retrieverThreads systemConfig'
+                            mapM_ throwShutdownExceptionToThread retrievers
 
-                    -- Kill the outrouter and senders if need be
-                    senders <- senderThreads systemconfig
-                    senderTimers <- mapM (terminateWithinOrThrowException 1000000 (toException ShuttingDownException)) (outRouter ++ senders)
+                            -- Kill the outrouter and senders if need be
+                            senders <- senderThreads systemConfig'
+                            senderTimers <- mapM (terminateWithinOrThrowException 1000000 (toException ShuttingDownException)) (outRouter ++ senders)
 
-                    -- Wait for all workers
-                    joinThreads (retrievers ++ outRouter ++ senders)
-                    -- Stop all outrouter and sender kill timers if they are still active
-                    mapM_ stopTimer senderTimers
+                            -- Wait for all workers
+                            joinThreads (retrievers ++ outRouter ++ senders)
+                            -- Stop all outrouter and sender kill timers if they are still active
+                            mapM_ stopTimer senderTimers
 
-                    -- Clean up the system
-                    startTeardowning systemconfig
-                    startDisplayingExceptions systemconfig
-              )
+                            -- Clean up the system
+                            startTeardowning systemConfig'
+                            startDisplayingExceptions systemConfig'
+                      )
 
 terminateWithinOrThrowException :: Int
                                 -> SomeException

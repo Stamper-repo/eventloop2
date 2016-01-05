@@ -4,8 +4,11 @@ import Control.Concurrent.MVar
 
 import Eventloop.Types.Common
 
-type CanvasUserReceiveBuffer = MVar [CanvasIn]
 type CanvasSystemReceiveBuffer = MVar SystemCanvasIn
+
+instance Show (MVar a) where
+    show _ = "CanvasSystemReceiveBuffer"
+
 
 type Opcode = Int
 

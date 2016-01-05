@@ -6,7 +6,7 @@ name:                eventloop
 -- PVP summary:      +-+------- breaking API changes
 --                   | | +----- non-breaking API additions
 --                   | | | +--- code changes with no API change
-version:             0.5.1.0
+version:             0.5.1.1
 synopsis:            A different take on an IO system. Based on Amanda's IO loop, this eventloop takes a function that maps input events to output events. It can easily be extended by modules that represent IO devices or join multiple modules together.
 description:         A different take on an IO system. Based on Amanda's IO loop, this eventloop takes a function that maps input events to output events. It can easily be extended by modules that represent IO devices or join multiple modules together.
                      Each module exists of a initialize and teardown function that are both called once at startup and shutting down. During run-time, a module can provice a preprocessor function (which transforms input events before they get to the eventloop),
@@ -90,12 +90,10 @@ library
                        Eventloop.System.SenderThread,
                        Eventloop.System.Setup,
                        Eventloop.System.TeardownThread,
-                       Eventloop.System.ThreadActions,
                        
                        Eventloop.Types.Exception,
                        
                        Eventloop.Utility.Websockets,
-                       Eventloop.Utility.BufferedWebsockets,
                        Eventloop.Utility.Config,
                        Eventloop.Utility.Trees.LayoutTree
   
@@ -109,7 +107,8 @@ library
                        suspend >=0.2 && <0.3, 
                        aeson >=0.8 && <0.9, 
                        bytestring >=0.10 && <0.11,
-                       concurrent-utilities >=0.1 && <0.2
+                       concurrent-utilities >=0.2 && <0.3,
+                       stm >=2.4 && <2.5
   
   -- Directories containing source files.
   hs-source-dirs:      src

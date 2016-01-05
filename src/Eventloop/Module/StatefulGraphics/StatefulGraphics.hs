@@ -6,6 +6,9 @@ module Eventloop.Module.StatefulGraphics.StatefulGraphics
     , statefulGraphicsTeardown
     ) where
 
+import Control.Concurrent.STM
+import Data.Maybe
+
 import Eventloop.Module.StatefulGraphics.Types
 
 import Eventloop.Module.Websocket.Canvas
@@ -13,10 +16,6 @@ import Eventloop.Module.BasicShapes
 import Eventloop.Types.Common
 import Eventloop.Types.Events
 import Eventloop.Types.System
-
-import Data.Maybe
-
-import Debug.Trace
 
 setupStatefulGraphicsModuleConfiguration :: EventloopSetupModuleConfiguration
 setupStatefulGraphicsModuleConfiguration = ( EventloopSetupModuleConfiguration
@@ -35,28 +34,32 @@ statefulGraphicsModuleIdentifier = "statefulgraphics"
 
 
 statefulGraphicsInitializer :: Initializer
-statefulGraphicsInitializer sharedIO
-    = return (sharedIO, StatefulGraphicsState [])
+statefulGraphicsInitializer sharedConst sharedIO
+    = return (sharedConst, sharedIO, NoConstants, StatefulGraphicsState [])
 
 
 statefulGraphicsTeardown :: Teardown
-statefulGraphicsTeardown sharedIO statefulState
+statefulGraphicsTeardown sharedConst sharedIO ioConst ioState
     = return (sharedIO)
 
 
 statefulGraphicsPostProcessor :: PostProcessor
-statefulGraphicsPostProcessor shared (StatefulGraphicsState states) (OutStatefulGraphics canvasId commands)
-    = return (shared, StatefulGraphicsState states', newScene)
-    where
-        (state', newScene) = calculateNewScene canvasId state commands
-        stateM = findGraphicalState states canvasId
-        state = case stateM of
-                    Just state_ -> state_
-                    Nothing -> []
-        states' = replaceGraphicalState states canvasId state'
+statefulGraphicsPostProcessor sharedConst sharedIOT ioConst ioStateT (OutStatefulGraphics canvasId commands)
+    = atomically $ do
+        (StatefulGraphicsState states) <- readTVar ioStateT
+        let
+            stateM = findGraphicalState states canvasId
+            state = case stateM of
+                        Just state_ -> state_
+                        Nothing -> []
+            (state', newScene) = calculateNewScene canvasId state commands
+            states' = replaceGraphicalState states canvasId state'
+        writeTVar ioStateT (StatefulGraphicsState states')
+        return newScene
 
-statefulGraphicsPostProcessor shared iostate out
-    = return (shared, iostate, [out])
+
+statefulGraphicsPostProcessor sharedConst sharedIOT ioConst ioStateT out
+    = return [out]
 
 
 replaceGraphicalState :: GraphicsStates -> CanvasId -> GraphicsState -> GraphicsStates
@@ -75,9 +78,9 @@ findGraphicalState ((id, state):states) canvasId
 
 calculateNewScene :: CanvasId -> GraphicsState -> [StatefulGraphicsOut] -> (GraphicsState, [Out])
 calculateNewScene canvasId state outs
-    = trace "Calculate new scene" (state', [clearCanvas, OutBasicShapes $ DrawShapes canvasId basicShapes])
+    = (state', [clearCanvas, OutBasicShapes $ DrawShapes canvasId basicShapes])
     where
-        (state', performed) = trace ("Outs: " ++ (show $ length outs)) foldl foldPerform (state, []) outs
+        (state', performed) = foldl foldPerform (state, []) outs
         foldPerform (state_, performed_) statefulOut = (state_', performed_ ++ [performed_'])
             where
                 (state_', performed_') = performStatefulGraphicsOut state_ statefulOut
@@ -89,14 +92,14 @@ calculateNewScene canvasId state outs
 performStatefulGraphicsOut :: GraphicsState -> StatefulGraphicsOut -> (GraphicsState, GraphicPerformed)
 performStatefulGraphicsOut state (Draw statefulGraphic)
     = case oldStatefulGraphicM of
-        Just oldStatefulGraphic -> trace ("Modified: " ++ (show $ fst statefulGraphic)) (state', Modified statefulGraphic)
-        Nothing                 -> trace ("Drawn: " ++ (show $ fst statefulGraphic)) (state', Drawn statefulGraphic)
+        Just oldStatefulGraphic -> (state', Modified statefulGraphic)
+        Nothing                 -> (state', Drawn statefulGraphic)
     where
         (state', oldStatefulGraphicM) = addOrReplaceGraphics state statefulGraphic
 performStatefulGraphicsOut state (Remove id)
     = case oldStatefulGraphicM of
-        Just oldStatefulGraphic -> trace ("Removed: " ++ (show id)) (state', Removed oldStatefulGraphic)
-        Nothing                 -> trace ("NoOp: " ++ (show id)) (state , NoOp)
+        Just oldStatefulGraphic -> (state', Removed oldStatefulGraphic)
+        Nothing                 -> (state , NoOp)
     where
         (state', oldStatefulGraphicM) = removeGraphics state id
 
@@ -117,7 +120,3 @@ removeGraphics (sg@(id, _):state) id'
     | otherwise = (sg:state', result)
     where
         (state', result) = removeGraphics state id'
-
-
-
-

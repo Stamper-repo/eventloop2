@@ -32,12 +32,13 @@ drawTreesModuleIdentifier = "parseTree"
 
 
 drawTreesPostProcessor :: PostProcessor
-drawTreesPostProcessor shared iostate (OutDrawTrees (DrawTrees canvasId trees))
-    = return (shared, iostate, [OutBasicShapes $ DrawShapes canvasId [shapeTrees]])
+drawTreesPostProcessor sharedConst sharedIOT ioConst ioStateT (OutDrawTrees (DrawTrees canvasId trees))
+    = return [OutBasicShapes $ DrawShapes canvasId [shapeTrees]]
     where
         (shapeTrees, _, _) = showGeneralTreeList trees
         
-drawTreesPostProcessor shared iostate out = return (shared, iostate, [out])
+drawTreesPostProcessor sharedConst sharedIOT ioConst ioStateT out
+    = return [out]
 
 
 maxWidth :: Int

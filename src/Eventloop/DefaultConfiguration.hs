@@ -31,9 +31,14 @@ allModulesEventloopSetupConfiguration beginProgstate eventloop
             , setupStdOutModuleConfiguration
             ]
         )
-                                                            
-setupSharedIOState :: IO SharedIOState
-setupSharedIOState
+
+
+setupSharedIOConstants :: IO SharedIOConstants
+setupSharedIOConstants
     = do
         safePrintToken <- createSafePrintToken
-        return (SharedIOState safePrintToken undefined)
+        return (SharedIOConstants safePrintToken undefined)
+
+setupSharedIOState :: IO SharedIOState
+setupSharedIOState
+    = return SharedIOState

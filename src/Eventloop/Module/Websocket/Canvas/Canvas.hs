@@ -10,8 +10,10 @@ module Eventloop.Module.Websocket.Canvas.Canvas
     
 import Control.Concurrent
 import Control.Concurrent.MVar
+import Control.Concurrent.SafePrint
 import Control.Concurrent.Thread
 import Data.Aeson
+import Data.Maybe
 import qualified Data.ByteString.Lazy.Char8 as LBS
 
 import Eventloop.Module.Websocket.Canvas.Types
@@ -20,7 +22,7 @@ import Eventloop.Types.Common
 import Eventloop.Types.Events
 import Eventloop.Types.System
 import Eventloop.Utility.Config
-import qualified Eventloop.Utility.Websockets as WS
+import Eventloop.Utility.Websockets
 
 
 setupCanvasModuleConfiguration :: EventloopSetupModuleConfiguration
@@ -40,73 +42,70 @@ canvasModuleIdentifier = "canvas"
 
 
 canvasInitializer :: Initializer
-canvasInitializer sharedIO
+canvasInitializer sharedConst sharedIO
     = do
-        (comRecvBuffer, clientSocket, clientConn, serverSock, unbufferedReaderThread) <- WS.setupWebsocketConnection ipAddress canvasPort
-        putStrLn "Canvas connection successfull!"
-        userRecvBuffer <- newMVar []
+        (clientSocket, clientConn, serverSock) <- setupWebsocketConnection ipAddress canvasPort
+        safePrintLn (safePrintToken sharedConst) "Canvas connection successfull!"
         sysRecvBuffer <- newEmptyMVar
-        routerThread <- forkThread (router comRecvBuffer userRecvBuffer sysRecvBuffer)
         --TODO Add measuretext to sharedIO
-        return (sharedIO, CanvasState comRecvBuffer userRecvBuffer sysRecvBuffer clientSocket clientConn serverSock unbufferedReaderThread routerThread)
+        return (sharedConst, sharedIO, CanvasConstants sysRecvBuffer clientSocket clientConn serverSock, NoState)
 
-
+{-
+TODO:
+- Bug cleanly disconnect websocket connection?
+- measuretext in sharedIO
+-}
 canvasEventRetriever :: EventRetriever
-canvasEventRetriever sharedIO canvasState = do
-                                                let
-                                                    userRecvBuffer = canvasUserReceiveBuffer canvasState
-                                                messages <- takeMVar userRecvBuffer
-                                                putMVar userRecvBuffer []
-                                                return (sharedIO, canvasState, (map InCanvas messages))
-
-                                    
-canvasEventSender :: EventSender
-canvasEventSender sharedIO canvasState (OutCanvas canvasOut) = do
-                                                        let
-                                                          conn = clientConnection canvasState  
-                                                        sendRoutedMessageOut conn (OutUserCanvas canvasOut)
-                                                        return (sharedIO, canvasState)
-                                    
-
-                                    
-canvasTeardown :: Teardown
-canvasTeardown sharedIO canvasState
+canvasEventRetriever sharedConst sharedIOT ioConst ioStateT
     = do
-        WS.closeWebsocketConnection (serverSocket canvasState) (clientSocket canvasState) (clientConnection canvasState) (unbufferedReaderThread canvasState)
-        terminateThread (routerThread canvasState)
-        joinThread (routerThread canvasState)
+        messageM <- takeMessage sock conn
+        case messageM of
+            Nothing -> return []
+            (Just message) -> do
+                                let
+                                    inRouted = fromJust.decode $ LBS.pack message
+                                inCanvasM <- route sysBuffer inRouted
+                                case inCanvasM of
+                                    Nothing         -> return []
+                                    (Just inCanvas) -> return [InCanvas inCanvas]
+    where
+        sock = clientSocket ioConst
+        conn = clientConnection ioConst
+        sysBuffer = canvasSystemReceiveBuffer ioConst
+
+
+canvasEventSender :: EventSender
+canvasEventSender sharedConst sharedIOT ioConst ioStateT (OutCanvas canvasOut)
+    = sendRoutedMessageOut conn (OutUserCanvas canvasOut)
+    where
+        conn = clientConnection ioConst
+                                    
+
+canvasTeardown :: Teardown
+canvasTeardown sharedConst sharedIO ioConst ioState
+    = do
+        closeWebsocketConnection serverSock clientSock conn
         -- Todo teardown measureText websocket connection
         return sharedIO
-    
-    
-sendRoutedMessageOut :: WS.Connection -> RoutedMessageOut -> IO ()
-sendRoutedMessageOut conn out = WS.writeMessage conn $ LBS.unpack $ encode out
+    where
+        serverSock = serverSocket ioConst
+        clientSock = clientSocket ioConst
+        conn = clientConnection ioConst
 
 
-router :: WS.ReceiveBuffer -> CanvasUserReceiveBuffer -> CanvasSystemReceiveBuffer -> IO ()
-router comRecvBuffer userRecvBuffer sysRecvBuffer = do
-                                                        encodedRoutedIn <- takeMVar comRecvBuffer
-                                                        let
-                                                            Just routedIn = decode $ LBS.pack encodedRoutedIn :: Maybe RoutedMessageIn
-                                                        case routedIn of
-                                                            (InUserCanvas canvasIn)   -> do
-                                                                                            ins <- takeMVar userRecvBuffer
-                                                                                            putMVar userRecvBuffer (ins ++ [canvasIn])
-                                                                                            nextStep
-                                                            (InSystemCanvas canvasIn) -> do
-                                                                                            putMVar sysRecvBuffer canvasIn
-                                                                                            nextStep
-                                                  where
-                                                    nextStep = router comRecvBuffer userRecvBuffer sysRecvBuffer
+sendRoutedMessageOut :: Connection -> RoutedMessageOut -> IO ()
+sendRoutedMessageOut conn out = writeMessage conn $ LBS.unpack $ encode out
+
+
+route :: CanvasSystemReceiveBuffer -> RoutedMessageIn -> IO (Maybe CanvasIn)
+route sysRecvBuffer routedIn
+    = case routedIn of
+        (InUserCanvas canvasIn)   -> return (Just canvasIn)
+        (InSystemCanvas canvasIn) -> do
+                                        putMVar sysRecvBuffer canvasIn
+                                        return Nothing
 
                                                     
 --TODO
 measureText :: IOState -> CanvasId -> CanvasText -> IO ScreenDimensions
 measureText canvasState canvasId canvasText = return (4,4)
-                                                
-
-
-
-    
-    
-

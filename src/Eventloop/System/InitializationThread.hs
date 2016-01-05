@@ -3,34 +3,56 @@ module Eventloop.System.InitializationThread
     ) where
 
 import Control.Exception
-import Control.Concurrent.MVar
+import Control.Concurrent.STM
 
-import Eventloop.System.ThreadActions
 import Eventloop.Types.Exception
 import Eventloop.Types.System
 
 
 startInitializing :: EventloopSystemConfiguration progstateT
-                  -> IO ()
+                  -> IO (EventloopSystemConfiguration progstateT)
 startInitializing systemConfig
-    = mapM_ (initializeModule sharedIOStateM_) moduleConfigs_
+    = do
+        sharedIO <- readTVarIO sharedIOT_
+        (sharedConst', sharedIO', moduleConfigs_') <- initializeModules sharedConst sharedIO moduleConfigs_
+        atomically $ writeTVar sharedIOT_ sharedIO'
+        return systemConfig{moduleConfigs = moduleConfigs_', sharedIOConstants = sharedConst'}
     where
-        sharedIOStateM_ = sharedIOStateM systemConfig
+        sharedConst = sharedIOConstants systemConfig
+        sharedIOT_ = sharedIOStateT systemConfig
         moduleConfigs_ = moduleConfigs systemConfig
-        
 
-initializeModule :: MVar SharedIOState 
+
+initializeModules :: SharedIOConstants
+                  -> SharedIOState
+                  -> [EventloopModuleConfiguration]
+                  -> IO (SharedIOConstants, SharedIOState, [EventloopModuleConfiguration])
+initializeModules sharedConst sharedIO [] = return (sharedConst, sharedIO, [])
+initializeModules sharedConst sharedIO (moduleConfig:configs)
+    = do
+        (sharedConst', sharedIO', moduleConfig') <- initializeModule sharedConst sharedIO moduleConfig
+        (sharedConst'', sharedIO'', configs') <- initializeModules sharedConst' sharedIO' configs
+        return (sharedConst'', sharedIO'', moduleConfig':configs')
+
+
+initializeModule :: SharedIOConstants
+                 -> SharedIOState
                  -> EventloopModuleConfiguration
-                 -> IO ()
-initializeModule sharedIOStateM_ moduleConfig
+                 -> IO (SharedIOConstants, SharedIOState, EventloopModuleConfiguration)
+initializeModule sharedConst sharedIO moduleConfig
     = case (initializerM moduleConfig) of
-        Nothing            -> return ()
-        (Just initializer) -> do
-            initializeIOState sharedIOStateM_ iostateM_
-                ( \exception ->
-                    throwIO (InitializationException moduleId_ exception)
-                )
-                initializer
+        Nothing            -> return (sharedConst, sharedIO, moduleConfig)
+        (Just initializer) -> handle
+            ( \exception ->
+                throwIO (InitializationException moduleId_ exception)
+            )
+            ( do
+                ioState <- readTVarIO ioStateT_
+                (sharedConst', sharedIO', ioConst', ioState') <- initializer sharedConst sharedIO
+                atomically $ writeTVar ioStateT_ ioState'
+                return (sharedConst', sharedIO', moduleConfig {ioConstants = ioConst'})
+            )
     where
         moduleId_ = moduleId moduleConfig
-        iostateM_ = iostateM moduleConfig
+        ioConst = ioConstants moduleConfig
+        ioStateT_ = ioStateT moduleConfig

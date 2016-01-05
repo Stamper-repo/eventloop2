@@ -7,8 +7,9 @@ module Eventloop.Module.Timer.Timer
     , timerTeardown
     ) where
 
+import Control.Concurrent.Datastructures.BlockingConcurrentQueue
+import Control.Concurrent.STM
 import Control.Concurrent.Timer
-import Control.Concurrent.MVar
 import Control.Concurrent.Suspend.Lifted
 import Data.Maybe
 import Data.List
@@ -35,85 +36,118 @@ timerModuleIdentifier = "timer"
 
                              
 timerInitializer :: Initializer
-timerInitializer sharedIO = do
-                                incTickBuff <- newMVar []
-                                incITickBuff <- newMVar []
-                                return (sharedIO, TimerState [] [] incITickBuff incTickBuff)
+timerInitializer sharedConst sharedIO
+    = do
+        inQueue <- createBlockingConcurrentQueue
+        return (sharedConst, sharedIO, TimerConstants inQueue, TimerState [] [])
                         
                                 
 timerEventRetriever :: EventRetriever
-timerEventRetriever sharedIO timerState = do
-                                            let
-                                                incTickBuff = incomingTickBuffer timerState
-                                                incITickBuff = incomingIntervalTickBuffer timerState
-                                            incTicks <- swapMVar incTickBuff []
-                                            incITicks <- swapMVar incITickBuff []
-                                            let
-                                                tickedTimerIds = map (\(Tick id) -> id) incTicks
-                                            startedTimers' <- foldr (\id startedTimersIO -> (startedTimersIO >>= unregisterTimer id)) (return $ startedTimers timerState) tickedTimerIds
-                                            return (sharedIO, timerState{startedTimers = startedTimers'}, (map InTimer incTicks) ++ (map InTimer incITicks))
-                                    
+timerEventRetriever sharedConst sharedIOT ioConst ioStateT
+    = do
+        inTicks <- takeAllFromBlockingConcurrentQueue inQueue
+        ioState <- readTVarIO ioStateT -- This first read is just a snapshot
+        let
+            toStop = map (\(Tick id) -> id) inTicks
+            startedTimers_  = startedTimers ioState
+        sequence $ map (haltTimer startedTimers_) toStop
+        atomically $ do
+            ioState' <- readTVar ioStateT
+            let
+                startedTimers_'  = startedTimers ioState'
+                startedTimers_'' = foldl unregisterTimer startedTimers_' toStop
+            writeTVar ioStateT (ioState'{startedTimers = startedTimers_'})
+
+        return (map InTimer inTicks)
+    where
+        inQueue = tickInQueue ioConst
+
 
 timerEventSender :: EventSender
-timerEventSender sharedIO timerState (OutTimer a) = do
-                                                        timerState' <- timerEventSender' timerState a
-                                                        return (sharedIO, timerState')
-                                    
-timerEventSender' :: IOState -> TimerOut -> IO IOState
-timerEventSender' timerState (SetTimer id delay) = do
-                                                    let
-                                                        incTickBuff = incomingTickBuffer timerState
-                                                        startedTimers_ = startedTimers timerState
-                                                    startedTimers' <- registerTimer startedTimers_ incTickBuff id delay (oneShotStart)
-                                                    let
-                                                        timerState' = timerState {startedTimers = startedTimers'}
-                                                    return timerState'
+timerEventSender sharedConst sharedIOT ioConst ioStateT (OutTimer a)
+    = timerEventSender' ioStateT tickBuffer a
+    where
+        tickBuffer = tickInQueue ioConst
 
-timerEventSender' timerState (SetIntervalTimer id delay) = do
-                                                            let
-                                                                incITickBuff = incomingIntervalTickBuffer timerState
-                                                                startedITimers = startedIntervalTimers timerState
-                                                            startedITimers' <- registerTimer startedITimers incITickBuff id delay (repeatedStart)
-                                                            let
-                                                                timerState' = timerState {startedIntervalTimers = startedITimers'}
-                                                            return timerState'
-                                                            
-timerEventSender' timerState (UnsetTimer id) = do
-                                                startedTimers' <- unregisterTimer id (startedTimers timerState)
-                                                startedITimers' <- unregisterTimer id (startedIntervalTimers timerState)
-                                                return (timerState {startedTimers = startedTimers', startedIntervalTimers=startedITimers'})
-           
+                                    
+timerEventSender' :: TVar IOState -> TickBuffer -> TimerOut -> IO ()
+timerEventSender' ioStateT tickBuffer (SetTimer id delay)
+    = do
+        startedTimer <- startTimer tickBuffer id delay (oneShotStart)
+        atomically $ do
+            ioState <- readTVar ioStateT
+            let
+                startedTimers_' = registerTimer (startedTimers ioState) startedTimer
+            writeTVar ioStateT ioState{startedTimers=startedTimers_'}
+
+timerEventSender' ioStateT tickBuffer (SetIntervalTimer id delay)
+    = do
+        startedTimer <- startTimer tickBuffer id delay (repeatedStart)
+        atomically $ do
+            ioState <- readTVar ioStateT
+            let
+                startedITimers_' = registerTimer (startedIntervalTimers ioState) startedTimer
+            writeTVar ioStateT ioState{startedIntervalTimers=startedITimers_'}
+
+timerEventSender' ioStateT tickBuffer (UnsetTimer id)
+    = do
+        ioState <- readTVarIO ioStateT -- This first read is just a snapshot
+        let
+            startedTimers_  = startedTimers ioState
+            startedITimers_ = startedIntervalTimers ioState
+        haltTimer startedTimers_ id
+        haltTimer startedITimers_ id
+        atomically $ do
+            ioState' <- readTVar ioStateT
+            let
+                startedTimers_'  = startedTimers ioState'
+                startedITimers_' = startedIntervalTimers ioState'
+            writeTVar ioStateT ioState'{ startedTimers = startedTimers_'
+                                       , startedIntervalTimers = startedITimers_'
+                                       }
+
            
 timerTeardown :: Teardown
-timerTeardown sharedIO timerState = do
-                                        let
-                                            allStartedTimers = (startedTimers timerState) ++ (startedIntervalTimers timerState)
-                                            allStartedIds = map fst allStartedTimers
-                                        sequence_ (map (\id -> unregisterTimer id allStartedTimers) allStartedIds)
-                                        return (sharedIO)
+timerTeardown sharedConst sharedIO ioConst ioState
+    = do
+        let
+            allStartedTimers = (startedTimers ioState) ++ (startedIntervalTimers ioState)
+            allStartedIds = map fst allStartedTimers
+        sequence_ $ map (haltTimer allStartedTimers) allStartedIds
+        return sharedIO
 
            
-registerTimer :: [StartedTimer] -> IncomingTickBuffer -> TimerId -> MicroSecondDelay -> TimerStartFunction -> IO [StartedTimer]
-registerTimer startedTimers incTickBuff id delay startFunc = do
-                                                                timer <- newTimer
-                                                                startFunc timer (tick id incTickBuff) ((usDelay.fromIntegral) delay)
-                                                                return (startedTimers ++ [(id, timer)])
-       
+registerTimer :: [StartedTimer] -> StartedTimer -> [StartedTimer]
+registerTimer startedTimers startedTimer
+    = startedTimers ++ [startedTimer]
 
-unregisterTimer :: TimerId -> [StartedTimer]  -> IO [StartedTimer]
-unregisterTimer id startedTimers = do
-                                    let
-                                        startedTimerM = findStartedTimer startedTimers id
-                                        stopAction (Just (_, timer)) = stopTimer timer
-                                        stopAction Nothing           = return () 
-                                        startedTimers' = filter (\(id', _) -> id /= id') startedTimers
-                                    stopAction startedTimerM
-                                    return startedTimers'
-                                    
+
+startTimer :: TickBuffer -> TimerId -> MicroSecondDelay -> TimerStartFunction -> IO StartedTimer
+startTimer incTickBuff id delay startFunc
+    = do
+        timer <- newTimer
+        startFunc timer (tick id incTickBuff) ((usDelay.fromIntegral) delay)
+        return (id, timer)
+
+
+unregisterTimer :: [StartedTimer] -> TimerId -> [StartedTimer]
+unregisterTimer startedTimers id
+    = filter (\(id', _) -> id /= id') startedTimers
+
+
+haltTimer :: [StartedTimer] -> TimerId -> IO ()
+haltTimer startedTimers id
+    = do
+        let
+            startedTimerM = findStartedTimer startedTimers id
+            stopAction (Just (_, timer)) = stopTimer timer
+            stopAction Nothing           = return ()
+        stopAction startedTimerM
+
 
 findStartedTimer :: [StartedTimer] -> TimerId -> Maybe StartedTimer
 findStartedTimer startedTimers id = find (\(id', timer) -> id == id') startedTimers
                                         
        
-tick :: TimerId -> IncomingTickBuffer -> IO ()
-tick id incTickBuff = modifyMVar_ incTickBuff (\ticks -> return $ ticks ++ [Tick id])
+tick :: TimerId -> TickBuffer -> IO ()
+tick id tickBuffer = putInBlockingConcurrentQueue tickBuffer (Tick id)

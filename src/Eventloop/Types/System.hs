@@ -5,6 +5,7 @@ import Control.Concurrent.ExceptionCollection
 import Control.Concurrent.MVar
 import Control.Concurrent.Thread
 import Control.Concurrent.SafePrint
+import Control.Concurrent.STM
 import Control.Concurrent.Datastructures.BlockingConcurrentQueue
 import Data.Maybe
 
@@ -20,16 +21,15 @@ import Eventloop.Module.Timer.Types
 import Eventloop.Types.Common
 import Eventloop.Types.Events
 import Eventloop.Types.Exception
-import qualified Eventloop.Utility.Websockets as WS
-import qualified Eventloop.Utility.BufferedWebsockets as BWS
+import Eventloop.Utility.Websockets
 
 
-type Initializer = SharedIOState -> IO (SharedIOState, IOState)
-type EventRetriever = SharedIOState -> IOState -> IO (SharedIOState, IOState, [In])
-type PreProcessor = SharedIOState -> IOState -> In -> IO (SharedIOState, IOState, [In])
-type PostProcessor = SharedIOState -> IOState -> Out -> IO (SharedIOState, IOState, [Out])
-type EventSender = SharedIOState -> IOState -> Out -> IO (SharedIOState, IOState)
-type Teardown = SharedIOState -> IOState -> IO SharedIOState
+type Initializer = SharedIOConstants -> SharedIOState -> IO (SharedIOConstants, SharedIOState, IOConstants, IOState)
+type EventRetriever = SharedIOConstants -> TVar SharedIOState -> IOConstants -> TVar IOState -> IO [In]
+type PreProcessor = SharedIOConstants -> TVar SharedIOState -> IOConstants -> TVar IOState -> In -> IO [In]
+type PostProcessor = SharedIOConstants -> TVar SharedIOState -> IOConstants -> TVar IOState -> Out -> IO [Out]
+type EventSender = SharedIOConstants -> TVar SharedIOState -> IOConstants -> TVar IOState -> Out -> IO ()
+type Teardown = SharedIOConstants -> SharedIOState -> IOConstants -> IOState -> IO SharedIOState
 
 type OutEventRouter = Out -> EventloopModuleIdentifier
 
@@ -40,7 +40,8 @@ type SenderEventQueue = BlockingConcurrentQueue Out
 -- System Configurations
 data EventloopModuleConfiguration
     = EventloopModuleConfiguration { moduleId :: EventloopModuleIdentifier
-                                   , iostateM :: MVar IOState
+                                   , ioConstants :: IOConstants
+                                   , ioStateT :: TVar IOState
                                    , initializerM :: Maybe Initializer
                                    , retrieverM :: Maybe EventRetriever
                                    , preprocessorM :: Maybe PreProcessor
@@ -57,7 +58,7 @@ data EventloopModuleSenderConfiguration
 
                                          
 data EventloopConfiguration progstateT
-    = EventloopConfiguration { progstateM :: MVar progstateT
+    = EventloopConfiguration { progstateT :: TVar progstateT
                              , eventloopFunc :: progstateT -> In -> (progstateT, [Out])
                              , inEventQueue :: InEventQueue
                              , outEventQueue :: OutEventQueue
@@ -67,7 +68,8 @@ data EventloopConfiguration progstateT
 data EventloopSystemConfiguration progstateT
     = EventloopSystemConfiguration { eventloopConfig :: EventloopConfiguration progstateT
                                    , moduleConfigs :: [EventloopModuleConfiguration]
-                                   , sharedIOStateM :: MVar SharedIOState
+                                   , sharedIOConstants :: SharedIOConstants
+                                   , sharedIOStateT :: TVar SharedIOState
                                    , systemThreadId :: ThreadId
                                    , retrieverThreadsM :: MVar [Thread]
                                    , outRouterThreadM :: MVar Thread
@@ -96,41 +98,38 @@ data EventloopSetupModuleConfiguration
          
          
 -- Shared IO State
-data SharedIOState = SharedIOState { safePrintToken :: SafePrintToken
-                                   , measureText :: CanvasText -> IO ScreenDimensions
-                                   }
+data SharedIOConstants = SharedIOConstants { safePrintToken :: SafePrintToken
+                                           , measureText :: CanvasText -> IO ScreenDimensions
+                                           }
+data SharedIOState = SharedIOState {}
          
 -- Modules IO State
-data IOState = MouseState { receiveBuffer        :: BWS.BufferedReceiveBuffer
-                          , clientSocket         :: BWS.ClientSocket
-                          , clientConnection     :: BWS.Connection
-                          , serverSocket         :: BWS.ServerSocket
-                          , bufferedReaderThread :: BWS.BufferedReaderThread
-                          }
-             | KeyboardState { receiveBuffer    :: BWS.BufferedReceiveBuffer
-                             , clientSocket     :: BWS.ClientSocket
-                             , clientConnection :: BWS.Connection
-                             , serverSocket     :: BWS.ServerSocket
-                             , bufferedReaderThread :: BWS.BufferedReaderThread
-                             }
-             | CanvasState { commonReceiveBuffer       :: WS.ReceiveBuffer
-                           , canvasUserReceiveBuffer   :: CanvasUserReceiveBuffer
-                           , canvasSystemReceiveBuffer :: CanvasSystemReceiveBuffer
-                           , clientSocket              :: WS.ClientSocket
-                           , clientConnection          :: WS.Connection
-                           , serverSocket              :: WS.ServerSocket
-                           , unbufferedReaderThread    :: WS.UnbufferedReaderThread
-                           , routerThread              :: Thread
-                           }
-             | StdInState { newStdInInEvents :: [StdInIn] 
-                          }
-             | TimerState { startedIntervalTimers      :: [StartedTimer]
+data IOConstants = MouseConstants { clientSocket         :: ClientSocket
+                                  , clientConnection     :: Connection
+                                  , serverSocket         :: ServerSocket
+                                  }
+                 | KeyboardConstants { clientSocket     :: ClientSocket
+                                     , clientConnection :: Connection
+                                     , serverSocket     :: ServerSocket
+                                     }
+                 | CanvasConstants { canvasSystemReceiveBuffer :: CanvasSystemReceiveBuffer
+                                   , clientSocket              :: ClientSocket
+                                   , clientConnection          :: Connection
+                                   , serverSocket              :: ServerSocket
+                                   }
+                 | StdInConstants { stdInInQueue :: BlockingConcurrentQueue StdInIn
+                                  }
+                 | TimerConstants { tickInQueue :: BlockingConcurrentQueue TimerIn
+                                  }
+                 | FileConstants { fileInQueue :: BlockingConcurrentQueue FileIn
+                                 }
+                 | NoConstants
+                 deriving Show
+
+data IOState = TimerState { startedIntervalTimers      :: [StartedTimer]
                           , startedTimers              :: [StartedTimer]
-                          , incomingIntervalTickBuffer :: IncomingTickBuffer
-                          , incomingTickBuffer         :: IncomingTickBuffer
                           }
-             | FileState { newFileInEvents :: [FileIn]
-                         , opened          :: [OpenFile]
+             | FileState { opened :: [OpenFile]
                          }
              | StatefulGraphicsState { states :: GraphicsStates
                                      }

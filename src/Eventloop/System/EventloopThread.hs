@@ -4,6 +4,7 @@ import Control.Exception
 import Control.Monad
 import Control.Concurrent.ExceptionUtility
 import Control.Concurrent.MVar
+import Control.Concurrent.STM
 import Control.Concurrent.Datastructures.BlockingConcurrentQueue
 import Data.Maybe
 
@@ -21,13 +22,13 @@ startEventlooping systemConfig
         forever $ do
           inEvent <- takeFromBlockingConcurrentQueue inEventQueue_ -- Take an In event
           processedInEvents <- processEvents "Preprocessing" systemConfig modulePreprocessors [inEvent] -- Preprocess it
-          outEvents <- eventloopSteps eventloop progstateM_ processedInEvents  -- Eventloop over the preprocessed In events
+          outEvents <- eventloopSteps eventloop progstateT_ processedInEvents  -- Eventloop over the preprocessed In events
           processedOutEvents <- processEvents "Postprocessing" systemConfig modulePostprocessors outEvents -- Postprocess the Out events
           putAllInBlockingConcurrentQueue outEventQueue_ processedOutEvents -- Send the processed Out events to the OutRouter
     where
         eventloopConfig_ = eventloopConfig systemConfig
         eventloop = eventloopFunc eventloopConfig_
-        progstateM_ = progstateM eventloopConfig_
+        progstateT_ = progstateT eventloopConfig_
         inEventQueue_ = inEventQueue eventloopConfig_
         outEventQueue_ = outEventQueue eventloopConfig_
         moduleConfigurations_ = moduleConfigs systemConfig
@@ -36,44 +37,40 @@ startEventlooping systemConfig
 
         
 findProcessors :: [EventloopModuleConfiguration]
-               -> (EventloopModuleConfiguration -> Maybe (SharedIOState -> IOState -> event -> IO (SharedIOState, IOState, [event]))) -- Pre-/Postprocessor function
-               -> [(EventloopModuleIdentifier, MVar IOState, (SharedIOState -> IOState -> event -> IO (SharedIOState, IOState, [event])))]
+               -> (EventloopModuleConfiguration -> Maybe (SharedIOConstants -> TVar SharedIOState -> IOConstants -> TVar IOState -> event -> IO [event])) -- Pre-/Postprocessor function
+               -> [(EventloopModuleIdentifier, IOConstants, TVar IOState, (SharedIOConstants -> TVar SharedIOState -> IOConstants -> TVar IOState -> event -> IO [event]))]
 findProcessors moduleConfigs getProcessorFunc
     = moduleProcessors
     where
-        moduleProcessorsM = map (\moduleConfig -> (moduleId moduleConfig, iostateM moduleConfig, getProcessorFunc moduleConfig)) moduleConfigs
-        moduleProcessorsJ = filter (\(_, _, processFuncM) -> isJust processFuncM) moduleProcessorsM
-        moduleProcessors = map (\(id, iostate, (Just processFunc)) -> (id, iostate, processFunc)) moduleProcessorsJ
+        moduleProcessorsM = map (\moduleConfig -> (moduleId moduleConfig, ioConstants moduleConfig, ioStateT moduleConfig, getProcessorFunc moduleConfig)) moduleConfigs
+        moduleProcessorsJ = filter (\(_, _, _, processFuncM) -> isJust processFuncM) moduleProcessorsM
+        moduleProcessors = map (\(id, ioConst, iostate, (Just processFunc)) -> (id, ioConst, iostate, processFunc)) moduleProcessorsJ
 
         
 eventloopSteps :: (progstateT -> In -> (progstateT, [Out])) {-| eventloop function -}
-               -> MVar progstateT
+               -> TVar progstateT
                -> [In]
                -> IO [Out]
-eventloopSteps eventloop progstateM inEvents
+eventloopSteps eventloop progstateT inEvents
     =  sequencedSteps >>= (return.concat)
     where
-        inEventSteps = map (eventloopStep eventloop progstateM) inEvents
+        inEventSteps = map (eventloopStep eventloop progstateT) inEvents
         sequencedSteps = sequence inEventSteps
     
         
 eventloopStep :: (progstateT -> In -> (progstateT, [Out])) {-| eventloop function -}
-              -> MVar progstateT
+              -> TVar progstateT
               -> In
               -> IO [Out]
-eventloopStep eventloop progstateM inEvent
-    = catch
-        ( uninterruptibleUpdateResourceAndCalculate
-            ( takeMVar progstateM
-            )
-            ( \progstate' ->
-                putMVar progstateM progstate'
-            )
-            ( \progstate ->
-                return (eventloop progstate inEvent)
-            )
-        )
+eventloopStep eventloop progStateT inEvent
+    = handle
         ( \exception ->
             throwIO (EventloopException exception)
         )
-      >>= return.snd
+        ( do
+            progState <- readTVarIO progStateT
+            let
+                (progState', outEvents) = eventloop progState inEvent
+            atomically $ writeTVar progStateT progState'
+            return outEvents
+        )

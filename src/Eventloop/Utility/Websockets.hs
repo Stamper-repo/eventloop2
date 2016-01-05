@@ -24,6 +24,8 @@ type ClientSocket = S.Socket
 type ReaderThread = Thread
 type UnbufferedReaderThread = ReaderThread
 
+instance Show Connection where
+    show _ = "Connection"
                                     
 createBindListenServerSocket :: Host -> Port -> IO ServerSocket
 createBindListenServerSocket host port = do
@@ -43,37 +45,23 @@ acceptFirstConnection serverSocket = do
                                         return (connection, clientSocket)
 
                                         
-setupWebsocketConnection :: Host -> Port -> IO (ReceiveBuffer, ClientSocket, Connection, ServerSocket, UnbufferedReaderThread)
+setupWebsocketConnection :: Host -> Port -> IO (ClientSocket, Connection, ServerSocket)
 setupWebsocketConnection host port = S.withSocketsDo $ do
                                                         serverSocket <- createBindListenServerSocket host port
                                                         (clientConnection, clientSocket) <- acceptFirstConnection serverSocket
-                                                        recvBuffer <- newEmptyMVar
-                                                        readerThread <- spawnUnbufferedReader recvBuffer clientConnection clientSocket
-                                                        return (recvBuffer, clientSocket, clientConnection, serverSocket, readerThread)
+                                                        return (clientSocket, clientConnection, serverSocket)
                                         
-                                        
-spawnUnbufferedReader :: ReceiveBuffer -> Connection -> ClientSocket -> IO UnbufferedReaderThread
-spawnUnbufferedReader recvBuffer conn clientSocket 
-    = forkThread (handle (handleCloseRequestException clientSocket) $ readIntoBuffer recvBuffer conn)
-                                
-                                
-readIntoBuffer :: ReceiveBuffer -> Connection -> IO ()
-readIntoBuffer recvBuffer conn =  do
-                                    textMessage <- receiveData conn
-                                    let
-                                        message = T.unpack textMessage
-                                    putMVar recvBuffer message
-                                    readIntoBuffer recvBuffer conn
- 
- 
-handleCloseRequestException :: ClientSocket -> ConnectionException -> IO ()
+
+handleCloseRequestException :: ClientSocket -> ConnectionException -> IO (Maybe Message)
 handleCloseRequestException clientSocket (CloseRequest i reason) 
     | i == 1000 = do
                     Prelude.putStrLn "Client connected was closed elegantly."
                     S.sClose clientSocket
+                    return Nothing
     | otherwise = do
                     Prelude.putStrLn ("Connection was closed but reason unknown: " ++ show i ++ " " ++ show reason)
                     S.sClose clientSocket
+                    return Nothing
     
 handleCloseRequestException clientSocket (ConnectionClosed)
     = do
@@ -87,27 +75,26 @@ handleCloseRequestException clientSocket (ParseException text)
         S.sClose clientSocket
         throw (ParseException text)
                             
-                            
-hasMessage :: ReceiveBuffer -> IO Bool
-hasMessage recvBuffer = do
-                            buffer <- tryReadMVar recvBuffer
-                            return (buffer /= Nothing)
-                            
-                            
-takeMessage :: ReceiveBuffer -> IO Message
-takeMessage recvBuffer = takeMVar recvBuffer
+
+takeMessage :: ClientSocket -> Connection -> IO (Maybe Message)
+takeMessage sock conn
+    = handle (handleCloseRequestException sock) $ do
+        textMessage <- receiveData conn
+        let
+            message = T.unpack textMessage
+        return (Just message)
                                 
                                 
 writeMessage :: Connection -> Message -> IO ()
-writeMessage conn message = sendTextData conn (T.pack message)
-                            
+writeMessage conn message = do
+                                sendTextData conn (T.pack message)
 
 writeBinaryMessage :: Connection -> ByteString -> IO ()
 writeBinaryMessage conn message = sendBinaryData conn message
 
 
-closeWebsocketConnection :: ServerSocket -> ClientSocket -> Connection -> ReaderThread -> IO ()
-closeWebsocketConnection serverSocket clientSocket clientConnection readerThread
+closeWebsocketConnection :: ServerSocket -> ClientSocket -> Connection -> IO ()
+closeWebsocketConnection serverSocket clientSocket clientConnection
     = do
         S.sClose serverSocket
         isConnected <- S.sIsConnected clientSocket
@@ -126,6 +113,5 @@ closeWebsocketConnection serverSocket clientSocket clientConnection readerThread
                             )
                             ( sendClose clientConnection (T.pack "Shutting down..")
                             )
-        joinThread readerThread
         
                                                             

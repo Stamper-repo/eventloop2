@@ -3,9 +3,8 @@ module Eventloop.System.TeardownThread
     ) where
 
 import Control.Exception
-import Control.Concurrent.MVar
+import Control.Concurrent.STM
 
-import Eventloop.System.ThreadActions
 import Eventloop.Types.Exception
 import Eventloop.Types.System
 
@@ -13,24 +12,43 @@ import Eventloop.Types.System
 startTeardowning :: EventloopSystemConfiguration progstateT
                  -> IO ()
 startTeardowning systemConfig
-    = mapM_ (teardownModule sharedIOStateM_) moduleConfigs_
+    = do
+        sharedIO <- readTVarIO sharedIOStateT_
+        sharedIO' <- teardownModules sharedConst sharedIO moduleConfigs_
+        atomically $ writeTVar sharedIOStateT_ sharedIO'
     where
-        sharedIOStateM_ = sharedIOStateM systemConfig
+        sharedConst = sharedIOConstants systemConfig
+        sharedIOStateT_ = sharedIOStateT systemConfig
         moduleConfigs_ = moduleConfigs systemConfig
         
 
-teardownModule :: MVar SharedIOState 
-                 -> EventloopModuleConfiguration
-                 -> IO ()
-teardownModule sharedIOStateM_ moduleConfig
+teardownModules :: SharedIOConstants
+                -> SharedIOState
+                -> [EventloopModuleConfiguration]
+                -> IO SharedIOState
+teardownModules _ sharedIO [] = return sharedIO
+teardownModules sharedConst sharedIO (moduleConfig:configs)
+    = do
+        sharedIO' <- teardownModule sharedConst sharedIO moduleConfig
+        teardownModules sharedConst sharedIO' configs
+
+
+teardownModule :: SharedIOConstants
+               -> SharedIOState
+               -> EventloopModuleConfiguration
+               -> IO SharedIOState
+teardownModule sharedConst sharedIO moduleConfig
     = case (teardownM moduleConfig) of
-        Nothing            -> return ()
-        (Just teardown) ->
-            teardownIOState sharedIOStateM_ iostateM_
+        Nothing         -> return (sharedIO)
+        (Just teardown) -> handle
                 ( \exception ->
                     throwIO (TeardownException moduleId_ exception)
                 )
-                teardown
+               ( do
+                    ioState <- readTVarIO ioStateT_
+                    teardown sharedConst sharedIO ioConst ioState
+               )
     where
         moduleId_ = moduleId moduleConfig
-        iostateM_ = iostateM moduleConfig
+        ioConst = ioConstants moduleConfig
+        ioStateT_ = ioStateT moduleConfig

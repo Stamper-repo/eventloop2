@@ -27,9 +27,10 @@ basicShapesModuleIdentifier = "basicshapes"
 
 
 basicShapesPostProcessor :: PostProcessor
-basicShapesPostProcessor shared iostate (OutBasicShapes basicShapesOut)
-    = return (shared, iostate, [OutCanvas canvasOut])
+basicShapesPostProcessor sharedConst sharedIOT ioConst ioStateT (OutBasicShapes basicShapesOut)
+    = return [OutCanvas canvasOut]
     where
         canvasOut = toCanvasOut basicShapesOut
         
-basicShapesPostProcessor shared iostate out = return (shared, iostate, [out])
+basicShapesPostProcessor sharedConst sharedIOT ioConst ioStateT out
+    = return [out]

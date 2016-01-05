@@ -2,10 +2,9 @@ module Eventloop.System.SenderThread where
 
 import Control.Exception
 import Control.Monad
-import Control.Concurrent.MVar
+import Control.Concurrent.STM
 import Control.Concurrent.Datastructures.BlockingConcurrentQueue
 
-import Eventloop.System.ThreadActions
 import Eventloop.Types.Common
 import Eventloop.Types.Events
 import Eventloop.Types.Exception
@@ -19,29 +18,31 @@ startSending systemConfig (moduleConfig, moduleSenderConfig)
         outEvent <- takeFromBlockingConcurrentQueue senderEventQueue_
         case outEvent of
             Stop -> throwIO RequestShutdownException
-            _    -> sendOne moduleId_ sharedIOStateM_ iostateM_ sender_ outEvent
+            _    -> sendOne moduleId_ sharedConst sharedIOT ioConst ioStateT_ sender_ outEvent
     where
         moduleId_ = moduleId moduleConfig
-        sharedIOStateM_ = sharedIOStateM systemConfig
-        iostateM_ = iostateM moduleConfig
+        sharedConst = sharedIOConstants systemConfig
+        sharedIOT = sharedIOStateT systemConfig
+        ioConst = ioConstants moduleConfig
+        ioStateT_ = ioStateT moduleConfig
         sender_ = sender moduleSenderConfig
         senderEventQueue_ = senderEventQueue moduleSenderConfig
 
                 
 sendOne :: EventloopModuleIdentifier
-        -> MVar SharedIOState
-        -> MVar IOState
+        -> SharedIOConstants
+        -> TVar SharedIOState
+        -> IOConstants
+        -> TVar IOState
         -> EventSender
         -> Out
         -> IO ()
-sendOne moduleId sharedIOStateM_ iostateM sender outEvent
-    = withSharedIOStateAndIOState sharedIOStateM_ iostateM
-        ( \exception ->
-            -- Wrap the exception if it isn't a ShuttingDownException
-            case (fromException exception) of
-                (Just ShuttingDownException) -> throwIO ShuttingDownException
-                _                            -> throwIO (SendingException moduleId outEvent exception)
-        )
-        ( \sharedIOState iostate ->
-            sender sharedIOState iostate outEvent
-        )
+sendOne moduleId sharedConst sharedIOT ioConst ioStateT sender outEvent
+    = handle ( \exception ->
+                -- Wrap the exception if it isn't a ShuttingDownException
+                case (fromException exception) of
+                    (Just ShuttingDownException) -> throwIO ShuttingDownException
+                    _                            -> throwIO (SendingException moduleId outEvent exception)
+            )
+            ( sender sharedConst sharedIOT ioConst ioStateT outEvent
+            )

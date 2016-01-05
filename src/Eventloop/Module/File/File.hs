@@ -7,12 +7,15 @@ module Eventloop.Module.File.File
     ) where
 
 import Data.Maybe
+import Control.Concurrent.Datastructures.BlockingConcurrentQueue
+import Control.Concurrent.STM
 import System.IO
 
 import Eventloop.Module.File.Types
 import Eventloop.Types.Common
 import Eventloop.Types.Events
 import Eventloop.Types.System
+
 
 setupFileModuleConfiguration :: EventloopSetupModuleConfiguration
 setupFileModuleConfiguration = ( EventloopSetupModuleConfiguration 
@@ -30,83 +33,95 @@ fileModuleIdentifier = "file"
 
 
 fileInitializer :: Initializer
-fileInitializer sharedIO
-    = return (sharedIO, FileState [] [])
+fileInitializer sharedConst sharedIO
+    = do
+        inQueue <- createBlockingConcurrentQueue
+        return (sharedConst, sharedIO, FileConstants inQueue, FileState [])
 
     
 fileEventRetriever :: EventRetriever
-fileEventRetriever sharedIO fs
-    = return (sharedIO, fs', newFileInEvents')
+fileEventRetriever sharedConst sharedIOT ioConst ioStateT
+    = do
+        fileInEvents <- takeAllFromBlockingConcurrentQueue queue
+        return (map InFile fileInEvents)
     where
-        newFileInEvents' = map InFile (newFileInEvents fs)
-        fs' = fs {newFileInEvents = []}
+        queue = fileInQueue ioConst
 
 
 fileEventSender :: EventSender
-fileEventSender sharedIO fileState (OutFile a)
+fileEventSender sharedConst sharedIOT ioConst ioStateT (OutFile out)
     = do
-        fileState' <- fileEventSender' fileState a                                                
-        return (sharedIO, fileState')
+        (FileState openFiles) <- readTVarIO ioStateT
+        (openFiles', inEvents) <- fileEventSender' openFiles out
+        atomically $ writeTVar ioStateT (FileState openFiles')
+        putAllInBlockingConcurrentQueue inQueue inEvents
+    where
+        inQueue = fileInQueue ioConst
 
     
-fileEventSender' :: IOState -> FileOut -> IO IOState
-fileEventSender' fs (OpenFile filepath iomode) = do
-                                                    handle <- openFile filepath iomode
-                                                    let
-                                                        fileOpenedEvent = FileOpened filepath True
-                                                        opened' = (opened fs) ++ [(filepath, handle, iomode)]
-                                                        otherInEvents = newFileInEvents fs
-                                                        fs' = fs {newFileInEvents=(otherInEvents ++ [fileOpenedEvent]), opened=opened'}
-                                                    return fs'
+fileEventSender' :: [OpenFile] -> FileOut -> IO ([OpenFile], [FileIn])
+fileEventSender' openFiles (OpenFile filepath iomode)
+    = do
+        handle <- openFile filepath iomode
+        let
+            fileOpenedEvent = FileOpened filepath True
+            openFiles' = openFiles ++ [(filepath, handle, iomode)]
+        return (openFiles', [fileOpenedEvent])
                                                                                          
-fileEventSender' fs (CloseFile filepath) | openfileM == Nothing = return fs
-                                         | otherwise = do
-                                                        hClose handle
-                                                        return fs'
-                                         where
-                                             openedFiles = opened fs
-                                             openfileM = retrieveOpenedFile openedFiles filepath
-                                             (fp, handle, iomode) = fromJust openfileM
-                                             openedFiles' = removeOpenedFile openedFiles filepath
-                                             closedFileEvent = FileClosed filepath True
-                                             fs' = fs {newFileInEvents=(newFileInEvents fs ++ [closedFileEvent]), opened=openedFiles'}
+fileEventSender' openFiles (CloseFile filepath)
+    | openFileM == Nothing = return ([], [])
+    | otherwise = do
+                   hClose handle
+                   return (openFiles', [closedFileEvent])
+    where
+        openFileM = retrieveOpenedFile openFiles filepath
+        (fp, handle, iomode) = fromJust openFileM
+        openFiles' = removeOpenedFile openFiles filepath
+        closedFileEvent = FileClosed filepath True
                                                         
-fileEventSender' fs (RetrieveContents filepath) = doReadAction filepath fs RetrievedContents retrieveContents
-fileEventSender' fs (RetrieveLine filepath)     = doReadAction filepath fs RetrievedLine hGetLine
-fileEventSender' fs (RetrieveChar filepath)     = doReadAction filepath fs RetrievedChar hGetChar                           
-fileEventSender' fs (IfEOF filepath)            = getFromFile filepath fs fileIsOpened IsEOF hIsEOF
+fileEventSender' openFiles (RetrieveContents filepath)
+    = doReadAction filepath openFiles RetrievedContents retrieveContents
+
+fileEventSender' openFiles (RetrieveLine filepath)
+     = doReadAction filepath openFiles RetrievedLine hGetLine
+
+fileEventSender' openFiles (RetrieveChar filepath)
+    = doReadAction filepath openFiles RetrievedChar hGetChar
+
+fileEventSender' openFiles (IfEOF filepath)
+    = getFromFile filepath openFiles fileIsOpened IsEOF hIsEOF
                                                                      
-fileEventSender' fs (WriteTo filepath contents) | fileIsWriteable (opened fs) filepath = do
-                                                                                            hPutStr handle contents
-                                                                                            let
-                                                                                                fs' = fs {newFileInEvents = (newFileInEvents fs) ++ [WroteTo filepath True]}
-                                                                                            return fs'
-                                                | otherwise = return fs
-                                                where
-                                                    Just (fp, handle, iomode) = retrieveOpenedFile (opened fs) filepath
+fileEventSender' openFiles (WriteTo filepath contents)
+    | fileIsWriteable openFiles filepath = do
+        hPutStr handle contents
+        return (openFiles, [WroteTo filepath True])
+    | otherwise = return (openFiles, [])
+    where
+        Just (fp, handle, iomode) = retrieveOpenedFile openFiles filepath
 
                                                                                 
-doReadAction :: FilePath -> IOState -> (FilePath -> a -> FileIn) -> (Handle -> IO a) -> IO IOState
-doReadAction filepath fs inEvent readAction = getFromFile filepath fs fileIsReadable inEvent readAction
+doReadAction :: FilePath
+             -> [OpenFile]
+             -> (FilePath -> a -> FileIn)
+             -> (Handle -> IO a)
+             -> IO ([OpenFile], [FileIn])
+doReadAction filepath openFiles inEvent readAction
+    = getFromFile filepath openFiles fileIsReadable inEvent readAction
                          
                          
 getFromFile :: FilePath -> 
-               IOState -> 
+               [OpenFile] ->
                ([OpenFile] -> FilePath -> Bool) -> {- Check if the action should be done -}
                (FilePath -> a -> FileIn) -> {- The inEvent Constructor -}
                (Handle -> IO a) ->  {- The action which will grant a result -}
-               IO IOState
-getFromFile filepath fs@(FileState { opened = opened
-                                    , newFileInEvents = newFileInEvents
-                                    }) fileCheck inEvent action | fileCheck opened filepath = do
-                                                                                                    result <- action handle
-                                                                                                    let
-                                                                                                        newInEvent = inEvent filepath result
-                                                                                                        fs' = fs {newFileInEvents=newFileInEvents ++ [newInEvent]}
-                                                                                                    return fs'
-                                                                | otherwise                 = return fs
-                                                                 where
-                                                                    Just (fp, handle, iomode) = retrieveOpenedFile opened filepath
+               IO ([OpenFile], [FileIn])
+getFromFile filepath openFiles fileCheck inEvent action
+    | fileCheck openFiles filepath = do
+        result <- action handle
+        return (openFiles, [inEvent filepath result])
+    | otherwise                 = return (openFiles, [])
+    where
+        Just (fp, handle, iomode) = retrieveOpenedFile openFiles filepath
                                                             
 
 fileIsReadable :: [OpenFile] -> FilePath -> Bool
@@ -154,11 +169,13 @@ removeOpenedFile (openfile@(fp, h, iom):ofs) ufp | ufp == fp = ofs
 
                                            
 fileTeardown :: Teardown
-fileTeardown sharedIO  fs = do
-                             closeAllFiles handles
-                             return (sharedIO)
-                         where
-                             handles = map (\(fp, h, iom) -> h) (opened fs)
+fileTeardown sharedConst sharedIO ioConst ioState
+    = do
+         closeAllFiles handles
+         return (sharedIO)
+    where
+        handles = map (\(fp, h, iom) -> h) (opened ioState)
+
 
 closeAllFiles :: [Handle] -> IO ()
 closeAllFiles [] = return ()
