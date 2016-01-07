@@ -4,7 +4,7 @@ module Eventloop.Module.Websocket.Mouse.Mouse
     , mouseModuleIdentifier
     , mouseInitializer
     , mouseEventRetriever
-    , mouseTeardown
+    , mouseEventSender
     ) where
 
 import Control.Applicative
@@ -31,8 +31,8 @@ setupMouseModuleConfiguration = ( EventloopSetupModuleConfiguration
                                     (Just mouseEventRetriever)
                                     Nothing
                                     Nothing
+                                    (Just mouseEventSender)
                                     Nothing
-                                    (Just mouseTeardown)
                                   )
      
 
@@ -97,23 +97,39 @@ mouseInitializer sharedConst sharedIO
 mouseEventRetriever :: EventRetriever
 mouseEventRetriever sharedConst sharedIOT ioConst ioStateT
     = do
-        messageM <- takeMessage sock conn
-        case messageM of
-            Nothing        -> return []
-            (Just message) -> return [InMouse $ messageToMouseIn message]
+        isConnected <- isConnected sock
+        case isConnected of
+            False -> return []
+            True -> do
+                messageM <- takeMessage safePrintToken_ sock conn
+                case messageM of
+                    Nothing        -> return []
+                    (Just message) -> return [InMouse $ messageToMouseIn message]
     where
         sock = clientSocket ioConst
         conn = clientConnection ioConst
+        safePrintToken_ = safePrintToken sharedConst
 
 
 messageToMouseIn :: Message -> MouseIn
 messageToMouseIn message = fromJust.decode $ BL.pack message
 
 
-mouseTeardown :: Teardown
-mouseTeardown sharedConst sharedIO ioConst ioStateT
+mouseEventSender :: EventSender
+mouseEventSender sharedConst sharedIOT ioConst ioStateT Stop
     = do
-        closeWebsocketConnection serverSock clientSock conn
+        closeWebsocketConnection safePrintToken_ serverSock clientSock conn
+    where
+        serverSock = serverSocket ioConst
+        clientSock = clientSocket ioConst
+        conn = clientConnection ioConst
+        safePrintToken_ = safePrintToken sharedConst
+
+
+mouseTeardown :: Teardown
+mouseTeardown sharedConst sharedIO ioConst ioState
+    = do
+        destroyWebsocketConnection serverSock clientSock
         return sharedIO
     where
         serverSock = serverSocket ioConst

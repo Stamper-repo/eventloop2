@@ -7,6 +7,7 @@ import Control.Concurrent.Thread
 import Control.Concurrent.SafePrint
 import Control.Concurrent.STM
 import Control.Concurrent.Datastructures.BlockingConcurrentQueue
+import Control.Exception
 import Data.Maybe
 
 import Eventloop.Module.Websocket.Keyboard.Types
@@ -74,7 +75,7 @@ data EventloopSystemConfiguration progstateT
                                    , retrieverThreadsM :: MVar [Thread]
                                    , outRouterThreadM :: MVar Thread
                                    , senderThreadsM :: MVar [Thread]
-                                   , exceptions :: ExceptionCollection EventloopException
+                                   , exceptions :: ExceptionCollection SomeException
                                    , isStoppingM :: MVar Bool
                                    }
                         

@@ -4,7 +4,7 @@ module Eventloop.Module.Websocket.Keyboard.Keyboard
     , keyboardModuleIdentifier
     , keyboardInitializer
     , keyboardEventRetriever
-    , keyboardTeardown
+    , keyboardEventSender
     ) where
 
 import Data.Aeson
@@ -29,8 +29,8 @@ setupKeyboardModuleConfiguration = ( EventloopSetupModuleConfiguration
                                         (Just keyboardEventRetriever)
                                         Nothing
                                         Nothing
+                                        (Just keyboardEventSender)
                                         Nothing
-                                        (Just keyboardTeardown)
                                       )
 
                                       
@@ -53,29 +53,40 @@ keyboardInitializer sharedConst sharedIO
 keyboardEventRetriever :: EventRetriever
 keyboardEventRetriever sharedConst sharedIOT ioConst ioStateT
     = do
-        messageM <- takeMessage sock conn
-        case messageM of
-            Nothing -> return []
-            (Just message) -> return [InKeyboard $ messageToKeyboardIn message]
+        isConnected <- isConnected sock
+        case isConnected of
+            False -> return []
+            True -> do
+                messageM <- takeMessage safePrintToken_ sock conn
+                case messageM of
+                    Nothing -> return []
+                    (Just message) -> return [InKeyboard $ messageToKeyboardIn message]
     where
         sock = clientSocket ioConst
         conn = clientConnection ioConst
+        safePrintToken_ = safePrintToken sharedConst
 
 
 messageToKeyboardIn :: Message -> Keyboard
 messageToKeyboardIn message = fromJust.decode $ BL.pack message
 
 
+keyboardEventSender :: EventSender
+keyboardEventSender sharedConst sharedIOT ioConst ioStateT Stop
+    = do
+        closeWebsocketConnection safePrintToken_ serverSock clientSock conn
+    where
+        serverSock = serverSocket ioConst
+        clientSock = clientSocket ioConst
+        conn = clientConnection ioConst
+        safePrintToken_ = safePrintToken sharedConst
+
 keyboardTeardown :: Teardown
 keyboardTeardown sharedConst sharedIO ioConst ioState
     = do
-        closeWebsocketConnection serverSock clientSock conn
+        destroyWebsocketConnection serverSock clientSock
         return sharedIO
     where
         serverSock = serverSocket ioConst
         clientSock = clientSocket ioConst
         conn = clientConnection ioConst
-
-
-
-

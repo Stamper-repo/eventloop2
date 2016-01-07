@@ -30,9 +30,13 @@ stdOutModuleIdentifier = "stdout"
 
 
 stdOutEventSender :: EventSender
+stdOutEventSender _ _ _ _ Stop = return ()
 stdOutEventSender sharedConst sharedIOT ioConst ioStateT (OutStdOut (StdOutMessage str))
     = do
         safePrint token str
         hFlush stdout
     where
         token = safePrintToken sharedConst
+
+stdOutEventSender sharedConst sharedIOT ioConst ioStateT Stop
+    = return ()

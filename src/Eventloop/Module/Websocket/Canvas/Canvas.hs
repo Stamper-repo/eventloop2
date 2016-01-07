@@ -4,7 +4,6 @@ module Eventloop.Module.Websocket.Canvas.Canvas
     , canvasInitializer
     , canvasEventRetriever
     , canvasEventSender
-    , canvasTeardown
     ) where
 
     
@@ -52,26 +51,32 @@ canvasInitializer sharedConst sharedIO
 
 {-
 TODO:
-- Bug cleanly disconnect websocket connection?
+- Path bug
+RELEASE
 - measuretext in sharedIO
 -}
 canvasEventRetriever :: EventRetriever
 canvasEventRetriever sharedConst sharedIOT ioConst ioStateT
     = do
-        messageM <- takeMessage sock conn
-        case messageM of
-            Nothing -> return []
-            (Just message) -> do
-                                let
-                                    inRouted = fromJust.decode $ LBS.pack message
-                                inCanvasM <- route sysBuffer inRouted
-                                case inCanvasM of
-                                    Nothing         -> return []
-                                    (Just inCanvas) -> return [InCanvas inCanvas]
+        isConnected <- isConnected sock
+        case isConnected of
+            False -> return []
+            True -> do
+                messageM <- takeMessage safePrintToken_ sock conn
+                case messageM of
+                    Nothing -> return []
+                    (Just message) -> do
+                                        let
+                                            inRouted = fromJust.decode $ LBS.pack message
+                                        inCanvasM <- route sysBuffer inRouted
+                                        case inCanvasM of
+                                            Nothing         -> return []
+                                            (Just inCanvas) -> return [InCanvas inCanvas]
     where
         sock = clientSocket ioConst
         conn = clientConnection ioConst
         sysBuffer = canvasSystemReceiveBuffer ioConst
+        safePrintToken_ = safePrintToken sharedConst
 
 
 canvasEventSender :: EventSender
@@ -79,13 +84,21 @@ canvasEventSender sharedConst sharedIOT ioConst ioStateT (OutCanvas canvasOut)
     = sendRoutedMessageOut conn (OutUserCanvas canvasOut)
     where
         conn = clientConnection ioConst
-                                    
+
+canvasEventSender sharedConst sharedIOT ioConst ioStateT Stop
+    = do
+        closeWebsocketConnection safePrintToken_ serverSock clientSock conn
+        -- Todo teardown measureText websocket connection
+    where
+        serverSock = serverSocket ioConst
+        clientSock = clientSocket ioConst
+        conn = clientConnection ioConst
+        safePrintToken_ = safePrintToken sharedConst
 
 canvasTeardown :: Teardown
 canvasTeardown sharedConst sharedIO ioConst ioState
     = do
-        closeWebsocketConnection serverSock clientSock conn
-        -- Todo teardown measureText websocket connection
+        destroyWebsocketConnection serverSock clientSock
         return sharedIO
     where
         serverSock = serverSocket ioConst

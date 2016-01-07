@@ -17,14 +17,21 @@ import Eventloop.Types.System
 startEventlooping :: EventloopSystemConfiguration progstateT 
                   -> IO ()
 startEventlooping systemConfig
-    = do
-        putInBlockingConcurrentQueue inEventQueue_ Start
-        forever $ do
-          inEvent <- takeFromBlockingConcurrentQueue inEventQueue_ -- Take an In event
-          processedInEvents <- processEvents "Preprocessing" systemConfig modulePreprocessors [inEvent] -- Preprocess it
-          outEvents <- eventloopSteps eventloop progstateT_ processedInEvents  -- Eventloop over the preprocessed In events
-          processedOutEvents <- processEvents "Postprocessing" systemConfig modulePostprocessors outEvents -- Postprocess the Out events
-          putAllInBlockingConcurrentQueue outEventQueue_ processedOutEvents -- Send the processed Out events to the OutRouter
+    = handle
+        ( \exception ->
+            case (fromException exception) of
+                (Just RequestShutdownException) -> throwIO RequestShutdownException
+                _                               -> throwIO (EventloopException exception)
+        )
+        ( do
+            putInBlockingConcurrentQueue inEventQueue_ Start
+            forever $ do
+              inEvent <- takeFromBlockingConcurrentQueue inEventQueue_ -- Take an In event
+              processedInEvents <- processEvents "Preprocessing" systemConfig modulePreprocessors [inEvent] -- Preprocess it
+              outEvents <- eventloopSteps eventloop progstateT_ processedInEvents  -- Eventloop over the preprocessed In events
+              processedOutEvents <- processEvents "Postprocessing" systemConfig modulePostprocessors outEvents -- Postprocess the Out events
+              putAllInBlockingConcurrentQueue outEventQueue_ processedOutEvents -- Send the processed Out events to the OutRouter
+        )
     where
         eventloopConfig_ = eventloopConfig systemConfig
         eventloop = eventloopFunc eventloopConfig_
@@ -63,14 +70,9 @@ eventloopStep :: (progstateT -> In -> (progstateT, [Out])) {-| eventloop functio
               -> In
               -> IO [Out]
 eventloopStep eventloop progStateT inEvent
-    = handle
-        ( \exception ->
-            throwIO (EventloopException exception)
-        )
-        ( do
-            progState <- readTVarIO progStateT
-            let
-                (progState', outEvents) = eventloop progState inEvent
-            atomically $ writeTVar progStateT progState'
-            return outEvents
-        )
+    = do
+        progState <- readTVarIO progStateT
+        let
+            (progState', outEvents) = eventloop progState inEvent
+        atomically $ writeTVar progStateT progState'
+        return outEvents

@@ -6,12 +6,14 @@ module Eventloop.Utility.Websockets
 import qualified Network.Socket as S
 import qualified Data.Text as T
 import Network.WebSockets hiding (Message)
-import Control.Concurrent.MVar
 import Control.Concurrent
+import Control.Concurrent.MVar
+import Control.Concurrent.SafePrint
+import Control.Concurrent.Thread
 import Control.Exception
 import Data.ByteString.Lazy
 
-import Control.Concurrent.Thread
+
 
 type Host = [Char]
 type Port = Int
@@ -52,33 +54,33 @@ setupWebsocketConnection host port = S.withSocketsDo $ do
                                                         return (clientSocket, clientConnection, serverSocket)
                                         
 
-handleCloseRequestException :: ClientSocket -> ConnectionException -> IO (Maybe Message)
-handleCloseRequestException clientSocket (CloseRequest i reason) 
+handleCloseRequestException :: ClientSocket -> SafePrintToken -> ConnectionException -> IO (Maybe Message)
+handleCloseRequestException clientSocket safePrintToken (CloseRequest i reason)
     | i == 1000 = do
-                    Prelude.putStrLn "Client connected was closed elegantly."
+                    safePrintLn safePrintToken "Client connection was closed elegantly."
                     S.sClose clientSocket
                     return Nothing
     | otherwise = do
-                    Prelude.putStrLn ("Connection was closed but reason unknown: " ++ show i ++ " " ++ show reason)
+                    safePrintLn safePrintToken ("Connection was closed but reason unknown: " ++ show i ++ " " ++ show reason)
                     S.sClose clientSocket
                     return Nothing
     
-handleCloseRequestException clientSocket (ConnectionClosed)
+handleCloseRequestException clientSocket safePrintToken (ConnectionClosed)
     = do
-        Prelude.putStrLn ("Connection was closed unexpectedly")
+        safePrintLn safePrintToken ("Connection was closed unexpectedly")
         S.sClose clientSocket
         throw ConnectionClosed
     
-handleCloseRequestException clientSocket (ParseException text) 
+handleCloseRequestException clientSocket safePrintToken (ParseException text)
     = do
-        Prelude.putStrLn ("Parse exception on message: " ++ text)
+        safePrintLn safePrintToken ("Parse exception on message: " ++ text)
         S.sClose clientSocket
         throw (ParseException text)
                             
 
-takeMessage :: ClientSocket -> Connection -> IO (Maybe Message)
-takeMessage sock conn
-    = handle (handleCloseRequestException sock) $ do
+takeMessage :: SafePrintToken -> ClientSocket -> Connection -> IO (Maybe Message)
+takeMessage safePrintToken sock conn
+    = handle (handleCloseRequestException sock safePrintToken) $ do
         textMessage <- receiveData conn
         let
             message = T.unpack textMessage
@@ -93,25 +95,34 @@ writeBinaryMessage :: Connection -> ByteString -> IO ()
 writeBinaryMessage conn message = sendBinaryData conn message
 
 
-closeWebsocketConnection :: ServerSocket -> ClientSocket -> Connection -> IO ()
-closeWebsocketConnection serverSocket clientSocket clientConnection
+isConnected :: S.Socket -> IO Bool
+isConnected sock = S.sIsConnected sock
+
+closeWebsocketConnection :: SafePrintToken -> ServerSocket -> ClientSocket -> Connection -> IO ()
+closeWebsocketConnection safePrintToken serverSocket clientSocket clientConnection
     = do
         S.sClose serverSocket
-        isConnected <- S.sIsConnected clientSocket
+        isConnected <- isConnected clientSocket
         case isConnected of
-            False -> Prelude.putStrLn "Tried to close client connection but was already closed"
+            False -> safePrintLn safePrintToken "Tried to close client connection but was already closed"
             True  -> do
-                        Prelude.putStrLn "Closing client connection..."
+                        safePrintLn safePrintToken "Closing client connection..."
                         handle
                             (\(exception) ->
                                 case (exception :: ConnectionException) of
                                     ConnectionClosed -> do
-                                                            Prelude.putStrLn "Socket still open, but stream had an error"
+                                                            safePrintLn safePrintToken "Socket still open, but stream had an error"
                                                             S.sClose clientSocket
-                                                            Prelude.putStrLn "Client connection closed!"
-                                    _ -> Prelude.putStrLn "this should never happen, contact an administrator! ERROR: WS 01"
+                                                            safePrintLn safePrintToken "Client connection closed!"
+                                    _ -> safePrintLn safePrintToken "this should never happen, contact an administrator! ERROR: WS 01"
                             )
                             ( sendClose clientConnection (T.pack "Shutting down..")
                             )
-        
+
+
+destroyWebsocketConnection :: ServerSocket -> ClientSocket -> IO ()
+destroyWebsocketConnection serverSocket clientSocket
+    = do
+        S.close serverSocket
+        S.close clientSocket
                                                             

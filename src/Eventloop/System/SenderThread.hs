@@ -17,7 +17,9 @@ startSending systemConfig (moduleConfig, moduleSenderConfig)
     = forever $ do
         outEvent <- takeFromBlockingConcurrentQueue senderEventQueue_
         case outEvent of
-            Stop -> throwIO RequestShutdownException
+            Stop -> do
+                        sendOne moduleId_ sharedConst sharedIOT ioConst ioStateT_ sender_ Stop
+                        throwIO RequestShutdownException
             _    -> sendOne moduleId_ sharedConst sharedIOT ioConst ioStateT_ sender_ outEvent
     where
         moduleId_ = moduleId moduleConfig

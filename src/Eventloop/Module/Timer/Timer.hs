@@ -64,6 +64,7 @@ timerEventRetriever sharedConst sharedIOT ioConst ioStateT
 
 
 timerEventSender :: EventSender
+timerEventSender _ _ _ _ Stop = return ()
 timerEventSender sharedConst sharedIOT ioConst ioStateT (OutTimer a)
     = timerEventSender' ioStateT tickBuffer a
     where

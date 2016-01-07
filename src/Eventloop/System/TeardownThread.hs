@@ -3,6 +3,7 @@ module Eventloop.System.TeardownThread
     ) where
 
 import Control.Exception
+import Control.Concurrent.ExceptionCollection
 import Control.Concurrent.STM
 
 import Eventloop.Types.Exception
@@ -14,7 +15,7 @@ startTeardowning :: EventloopSystemConfiguration progstateT
 startTeardowning systemConfig
     = do
         sharedIO <- readTVarIO sharedIOStateT_
-        sharedIO' <- teardownModules sharedConst sharedIO moduleConfigs_
+        sharedIO' <- teardownModules sharedConst sharedIO systemConfig moduleConfigs_
         atomically $ writeTVar sharedIOStateT_ sharedIO'
     where
         sharedConst = sharedIOConstants systemConfig
@@ -24,25 +25,28 @@ startTeardowning systemConfig
 
 teardownModules :: SharedIOConstants
                 -> SharedIOState
+                -> EventloopSystemConfiguration progstateT
                 -> [EventloopModuleConfiguration]
                 -> IO SharedIOState
-teardownModules _ sharedIO [] = return sharedIO
-teardownModules sharedConst sharedIO (moduleConfig:configs)
+teardownModules _ sharedIO _ [] = return sharedIO
+teardownModules sharedConst sharedIO systemConfig (moduleConfig:configs)
     = do
-        sharedIO' <- teardownModule sharedConst sharedIO moduleConfig
-        teardownModules sharedConst sharedIO' configs
+        sharedIO' <- teardownModule sharedConst sharedIO systemConfig moduleConfig
+        teardownModules sharedConst sharedIO' systemConfig configs
 
 
 teardownModule :: SharedIOConstants
                -> SharedIOState
+               -> EventloopSystemConfiguration progstateT
                -> EventloopModuleConfiguration
                -> IO SharedIOState
-teardownModule sharedConst sharedIO moduleConfig
+teardownModule sharedConst sharedIO systemConfig moduleConfig
     = case (teardownM moduleConfig) of
         Nothing         -> return (sharedIO)
         (Just teardown) -> handle
-                ( \exception ->
-                    throwIO (TeardownException moduleId_ exception)
+                ( \exception -> do
+                    logException (exceptions systemConfig) (toException $ TeardownException moduleId_ exception)
+                    return sharedIO
                 )
                ( do
                     ioState <- readTVarIO ioStateT_

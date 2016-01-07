@@ -2,7 +2,9 @@ module Eventloop.System.DisplayExceptionThread
     ( startDisplayingExceptions
     ) where
 
+import qualified Control.Exception as E
 import Control.Concurrent.ExceptionCollection
+import Control.Concurrent.SafePrint
 
 import Eventloop.Types.Exception
 import Eventloop.Types.System
@@ -13,9 +15,12 @@ startDisplayingExceptions :: EventloopSystemConfiguration progstateT
 startDisplayingExceptions systemConfig
     = do
         exceptions_ <- collectExceptions (exceptions systemConfig)
-        mapM_ displayException exceptions_
+        mapM_ (displayException safePrintToken_) exceptions_
+    where
+        safePrintToken_ = safePrintToken (sharedIOConstants systemConfig)
           
           
-displayException :: EventloopException
+displayException :: SafePrintToken
+                 -> E.SomeException
                  -> IO ()
-displayException eventloopException = putStrLn (show eventloopException)
+displayException safePrintToken exception = safePrintLn safePrintToken (show exception)

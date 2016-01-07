@@ -49,6 +49,7 @@ fileEventRetriever sharedConst sharedIOT ioConst ioStateT
 
 
 fileEventSender :: EventSender
+fileEventSender _ _ _ _ Stop = return ()
 fileEventSender sharedConst sharedIOT ioConst ioStateT (OutFile out)
     = do
         (FileState openFiles) <- readTVarIO ioStateT

@@ -3,7 +3,6 @@ module Eventloop.Module.StatefulGraphics.StatefulGraphics
     , statefulGraphicsModuleIdentifier
     , statefulGraphicsInitializer
     , statefulGraphicsPostProcessor
-    , statefulGraphicsTeardown
     ) where
 
 import Control.Concurrent.STM
@@ -25,7 +24,7 @@ setupStatefulGraphicsModuleConfiguration = ( EventloopSetupModuleConfiguration
                                               Nothing
                                               (Just statefulGraphicsPostProcessor)
                                               Nothing
-                                              (Just statefulGraphicsTeardown)
+                                              Nothing
                                           )
 
 
@@ -36,11 +35,6 @@ statefulGraphicsModuleIdentifier = "statefulgraphics"
 statefulGraphicsInitializer :: Initializer
 statefulGraphicsInitializer sharedConst sharedIO
     = return (sharedConst, sharedIO, NoConstants, StatefulGraphicsState [])
-
-
-statefulGraphicsTeardown :: Teardown
-statefulGraphicsTeardown sharedConst sharedIO ioConst ioState
-    = return (sharedIO)
 
 
 statefulGraphicsPostProcessor :: PostProcessor

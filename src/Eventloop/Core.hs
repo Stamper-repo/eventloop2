@@ -1,6 +1,7 @@
 module Eventloop.Core where
 
 import Control.Exception
+import Control.Concurrent
 import Control.Concurrent.MVar
 import Control.Concurrent.ExceptionCollection
 import Control.Concurrent.Suspend.Lifted
@@ -41,8 +42,6 @@ startEventloopSystem setupConfig
         systemConfig' <- catch (startInitializing systemConfig) -- Initialization
                                (\shutdownException -> do
                                     logException (exceptions systemConfig) shutdownException -- Log the thrown exception
-                                    startTeardowning systemConfig
-                                    startDisplayingExceptions systemConfig
                                     return systemConfig
                                )
         failed <- hasExceptions (exceptions systemConfig')
@@ -75,23 +74,29 @@ startEventloopSystem setupConfig
                                 outEventQueue_ = outEventQueue eventloopConfig_
                             putInBlockingConcurrentQueue outEventQueue_ Stop
 
-                            -- Stop the retriever threads
-                            retrievers <- retrieverThreads systemConfig'
-                            mapM_ throwShutdownExceptionToThread retrievers
+                            -- Wait for the Stop to propagate
+                            threadDelay 100000
 
                             -- Kill the outrouter and senders if need be
                             senders <- senderThreads systemConfig'
                             senderTimers <- mapM (terminateWithinOrThrowException 1000000 (toException ShuttingDownException)) (outRouter ++ senders)
 
-                            -- Wait for all workers
-                            joinThreads (retrievers ++ outRouter ++ senders)
+                            -- Wait for the outRouter and Sender
+                            joinThreads (outRouter ++ senders)
+
                             -- Stop all outrouter and sender kill timers if they are still active
                             mapM_ stopTimer senderTimers
 
-                            -- Clean up the system
-                            startTeardowning systemConfig'
-                            startDisplayingExceptions systemConfig'
+                            -- Stop the retriever threads
+                            retrievers <- retrieverThreads systemConfig'
+                            mapM_ throwShutdownExceptionToThread retrievers
+
+                            -- Wait for all retrievers
+                            joinThreads retrievers
                       )
+        -- Clean up the system
+        startTeardowning systemConfig'
+        startDisplayingExceptions systemConfig'
 
 terminateWithinOrThrowException :: Int
                                 -> SomeException
@@ -134,17 +139,17 @@ spawnWorkerThread systemconfig logAction action
         thread <- forkThread $ do
             catch action
                 ( \exception ->
-                        case exception of
-                            ShuttingDownException ->
+                        case (fromException exception) of
+                            (Just ShuttingDownException) ->
                                 return ()
                             _                     -> do
                                 isStopping <- takeMVar isStoppingM_
                                 putMVar isStoppingM_ True
                                 case isStopping of
                                     True -> do
-                                        case exception of
-                                            RequestShutdownException -> return ()
-                                            _                            -> logException exceptions_ exception
+                                        case (fromException exception) of
+                                            (Just RequestShutdownException) -> return ()
+                                            _                               -> logException exceptions_ exception
                                     False -> throwTo systemTid exception
                     )
         logAction systemconfig thread

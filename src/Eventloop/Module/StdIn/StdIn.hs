@@ -49,6 +49,7 @@ stdInEventRetriever sharedConst sharedIOT ioConst ioStateT
 
         
 stdInEventSender :: EventSender
+stdInEventSender _ _ _ _ Stop = return ()
 stdInEventSender sharedConst sharedIOT ioConst ioStateT (OutStdIn a)
     = do
         inEvents <- stdInEventSender' a
