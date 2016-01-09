@@ -46,15 +46,13 @@ canvasInitializer sharedConst sharedIO
         (clientSocket, clientConn, serverSock) <- setupWebsocketConnection ipAddress canvasPort
         safePrintLn (safePrintToken sharedConst) "Canvas connection successfull!"
         sysRecvBuffer <- newEmptyMVar
-        --TODO Add measuretext to sharedIO
-        return (sharedConst, sharedIO, CanvasConstants sysRecvBuffer clientSocket clientConn serverSock, NoState)
+        let
+            ioConst = CanvasConstants sysRecvBuffer clientSocket clientConn serverSock
+            measureText_' = measureText_ ioConst
+            sharedConst' = sharedConst{measureText = measureText_'}
+        return (sharedConst', sharedIO, ioConst, NoState)
 
-{-
-TODO:
-- Path bug
-RELEASE
-- measuretext in sharedIO
--}
+
 canvasEventRetriever :: EventRetriever
 canvasEventRetriever sharedConst sharedIOT ioConst ioStateT
     = do
@@ -88,12 +86,12 @@ canvasEventSender sharedConst sharedIOT ioConst ioStateT (OutCanvas canvasOut)
 canvasEventSender sharedConst sharedIOT ioConst ioStateT Stop
     = do
         closeWebsocketConnection safePrintToken_ serverSock clientSock conn
-        -- Todo teardown measureText websocket connection
     where
         serverSock = serverSocket ioConst
         clientSock = clientSocket ioConst
         conn = clientConnection ioConst
         safePrintToken_ = safePrintToken sharedConst
+
 
 canvasTeardown :: Teardown
 canvasTeardown sharedConst sharedIO ioConst ioState
@@ -118,7 +116,14 @@ route sysRecvBuffer routedIn
                                         putMVar sysRecvBuffer canvasIn
                                         return Nothing
 
-                                                    
---TODO
-measureText :: IOState -> CanvasId -> CanvasText -> IO ScreenDimensions
-measureText canvasState canvasId canvasText = return (4,4)
+
+measureText_ :: IOConstants -> CanvasId -> CanvasText -> IO ScreenDimensions
+measureText_ ioConst canvasId canvasText
+    = do
+        sendRoutedMessageOut conn outMsg
+        (SystemMeasuredText _ _ screenDims) <- takeMVar buf
+        return screenDims
+    where
+        conn = clientConnection ioConst
+        buf = canvasSystemReceiveBuffer ioConst
+        outMsg = OutSystemCanvas $ SystemMeasureText canvasId canvasText

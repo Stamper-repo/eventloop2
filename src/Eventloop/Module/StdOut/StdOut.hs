@@ -37,6 +37,3 @@ stdOutEventSender sharedConst sharedIOT ioConst ioStateT (OutStdOut (StdOutMessa
         hFlush stdout
     where
         token = safePrintToken sharedConst
-
-stdOutEventSender sharedConst sharedIOT ioConst ioStateT Stop
-    = return ()

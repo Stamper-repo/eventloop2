@@ -20,6 +20,7 @@ instance ToOpcode CanvasOperation where
     toOpcode (DrawText _ _ _ _) = 302
     toOpcode (DoTransform _)    = 303
     toOpcode (Clear _)          = 304
+    toOpcode (Frame)            = 305
 
 instance ToOpcode ScreenPathPart where
     toOpcode (MoveTo _)              = 401

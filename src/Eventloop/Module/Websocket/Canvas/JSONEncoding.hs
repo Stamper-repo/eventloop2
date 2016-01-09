@@ -108,6 +108,7 @@ instance ToJSON CanvasOperation where
                                                                                                   ]
     toJSON d@(DoTransform canvasTransform) = operationObject (toOpcode d) [toJSON canvasTransform]
     toJSON d@(Clear clearPart) = operationObject (toOpcode d) [toJSON clearPart]
+    toJSON d@(Frame) = operationObject (toOpcode d) []
 
     
 instance ToJSON ScreenPathPart where

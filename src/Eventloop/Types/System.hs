@@ -100,7 +100,7 @@ data EventloopSetupModuleConfiguration
          
 -- Shared IO State
 data SharedIOConstants = SharedIOConstants { safePrintToken :: SafePrintToken
-                                           , measureText :: CanvasText -> IO ScreenDimensions
+                                           , measureText :: CanvasId -> CanvasText -> IO ScreenDimensions
                                            }
 data SharedIOState = SharedIOState {}
          

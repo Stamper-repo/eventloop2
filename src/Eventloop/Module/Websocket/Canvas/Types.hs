@@ -101,6 +101,7 @@ data CanvasOperation = DrawPath ScreenStartingPoint [ScreenPathPart] PathStroke 
                      | DrawText CanvasText ScreenPoint TextStroke TextFill {- ^Opcode: 0302 -}
                      | DoTransform CanvasTransform {- ^Opcode: 0303 -}
                      | Clear ClearPart {- ^Opcode: 0304 -}
+                     | Frame {- ^Opcode: 0305 -}
                      deriving (Eq, Show)
 
 {- |Opcode: 0400-}
