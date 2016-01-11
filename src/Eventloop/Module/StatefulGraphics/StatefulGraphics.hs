@@ -72,15 +72,17 @@ findGraphicalState ((id, state):states) canvasId
 
 calculateNewScene :: CanvasId -> GraphicsState -> [StatefulGraphicsOut] -> (GraphicsState, [Out])
 calculateNewScene canvasId state outs
-    = (state', [clearCanvas, OutBasicShapes $ DrawShapes canvasId basicShapes])
+    = (state', [ OutCanvas $ CanvasOperations canvasId [Clear ClearCanvas]
+               , OutBasicShapes $ DrawShapes canvasId basicShapes
+               , OutCanvas $ CanvasOperations canvasId [Frame]
+               ]
+      )
     where
         (state', performed) = foldl foldPerform (state, []) outs
         foldPerform (state_, performed_) statefulOut = (state_', performed_ ++ [performed_'])
             where
                 (state_', performed_') = performStatefulGraphicsOut state_ statefulOut
-
-        clearCanvas = OutCanvas $ CanvasOperations canvasId [Clear ClearCanvas]
-        basicShapes = map snd state'
+        basicShapes = map (\(_, _, shape) -> shape) state'
 
 
 performStatefulGraphicsOut :: GraphicsState -> StatefulGraphicsOut -> (GraphicsState, GraphicPerformed)
@@ -100,16 +102,28 @@ performStatefulGraphicsOut state (Remove id)
 
 addOrReplaceGraphics :: GraphicsState -> StatefulGraphic -> (GraphicsState, (Maybe StatefulGraphic))
 addOrReplaceGraphics [] new = ([new], Nothing) -- Add action
-addOrReplaceGraphics (old@(id, _):state) new@(id', newGraphic)
-    | id == id' = (new:state, Just old) -- Update action
-    | otherwise = (old:state', result)
-    where
-        (state', result) = addOrReplaceGraphics state new
+addOrReplaceGraphics (graphic@(id, z, _):state) new@(id', z', newGraphic)
+    | id == id' && z == z' = (new:state, Just graphic)                         -- Simple update
+
+    | id == id' && z /= z' = let                                               -- Update action (must be z <= z')
+                                (state', _) = addOrReplaceGraphics state new   -- Insert new higher up
+                             in
+                             (state', Just graphic)                            -- new is higher, forget current=old
+
+    | id /= id' && z > z'  = let                                               -- Add or update action
+                                (state', old) = removeGraphics state id'       -- Search higher state for possible stale
+                             in
+                             (new:graphic:state', old)
+
+    | otherwise            = let                                               -- Search further
+                                (state', result) = addOrReplaceGraphics state new
+                             in
+                             (graphic:state', result)
 
 
 removeGraphics :: GraphicsState -> NamedId -> (GraphicsState, (Maybe StatefulGraphic))
 removeGraphics [] _ = ([], Nothing)
-removeGraphics (sg@(id, _):state) id'
+removeGraphics (sg@(id, _, _):state) id'
     | id == id' = (state, Just sg)
     | otherwise = (sg:state', result)
     where
