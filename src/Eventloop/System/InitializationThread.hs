@@ -4,6 +4,7 @@ module Eventloop.System.InitializationThread
 
 import Control.Exception
 import Control.Concurrent.STM
+import Data.List
 
 import Eventloop.Types.Exception
 import Eventloop.Types.System
@@ -20,7 +21,7 @@ startInitializing systemConfig
     where
         sharedConst = sharedIOConstants systemConfig
         sharedIOT_ = sharedIOStateT systemConfig
-        moduleConfigs_ = moduleConfigs systemConfig
+        moduleConfigs_ = reverse $ moduleConfigs systemConfig
 
 
 initializeModules :: SharedIOConstants

@@ -7,13 +7,13 @@ class ToOpcode a where
 
     
 instance ToOpcode SystemCanvasOut where
-    toOpcode (SystemMeasureText _ _) = 2001
+    toOpcode (SystemMeasureText _) = 2001
 
 instance ToOpcode CanvasOut where
     toOpcode (SetupCanvas _ _ _ _)  = 201
     toOpcode (TeardownCanvas _)     = 202
     toOpcode (CanvasOperations _ _) = 203
-    toOpcode (MeasureText _ _)      = 204
+    toOpcode (MeasureText _)        = 204
 
 instance ToOpcode CanvasOperation where
     toOpcode (DrawPath _ _ _ _) = 301

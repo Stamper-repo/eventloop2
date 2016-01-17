@@ -68,6 +68,7 @@ library
                        Eventloop.Module.BasicShapes.BasicShapes,
                        Eventloop.Module.BasicShapes.Types,
                        Eventloop.Module.BasicShapes.Classes,
+                       Eventloop.Module.BasicShapes.MeasureTextHack,
                        Eventloop.Module.File.File,
                        Eventloop.Module.File.Types,
                        Eventloop.Module.StatefulGraphics.StatefulGraphics,
@@ -115,4 +116,3 @@ library
   
   -- Base language which the package is written in.
   default-language:    Haskell2010
-  

@@ -4,8 +4,11 @@ module Eventloop.Module.BasicShapes.BasicShapes
     , basicShapesPostProcessor
     ) where
 
+import Control.Concurrent.SafePrint
+
 import Eventloop.Module.BasicShapes.Types
 import Eventloop.Module.BasicShapes.Classes
+import Eventloop.Module.BasicShapes.MeasureTextHack
 import Eventloop.Types.Common
 import Eventloop.Types.Events
 import Eventloop.Types.System
@@ -13,7 +16,7 @@ import Eventloop.Types.System
 setupBasicShapesModuleConfiguration :: EventloopSetupModuleConfiguration
 setupBasicShapesModuleConfiguration = ( EventloopSetupModuleConfiguration
                                             basicShapesModuleIdentifier
-                                            Nothing
+                                            (Just basicShapesInitializer)
                                             Nothing
                                             Nothing
                                             (Just basicShapesPostProcessor)
@@ -24,6 +27,13 @@ setupBasicShapesModuleConfiguration = ( EventloopSetupModuleConfiguration
 
 basicShapesModuleIdentifier :: EventloopModuleIdentifier
 basicShapesModuleIdentifier = "basicshapes"
+
+
+basicShapesInitializer :: Initializer
+basicShapesInitializer sharedConst sharedIO
+    = do
+        saveMeasureText (measureText sharedConst)
+        return (sharedConst, sharedIO, NoConstants, NoState)
 
 
 basicShapesPostProcessor :: PostProcessor

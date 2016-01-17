@@ -1,10 +1,12 @@
 module Eventloop.Module.BasicShapes.Classes where
 
+import Control.Concurrent.MVar
+
 import Eventloop.Utility.Vectors
 import Eventloop.Module.BasicShapes.Types
+import Eventloop.Module.BasicShapes.MeasureTextHack
 import qualified Eventloop.Module.Websocket.Canvas.Types as CT
 
-import Debug.Trace
 
 addBoundingBox :: BoundingBox -> BoundingBox -> BoundingBox
 addBoundingBox (BoundingBox p11 p21 p31 p41) (BoundingBox p12 p22 p32 p42) = BoundingBox (Point (xMin, yMin)) (Point (xMin, yMax)) (Point (xMax, yMax)) (Point (xMax, yMin))
@@ -28,7 +30,15 @@ opOnBoundingBox op (BoundingBox p1 p2 p3 p4) = BoundingBox (op p1)
                                                            (op p3)
                                                            (op p4)
  
- 
+
+instance ExtremaCoord BoundingBox where
+    xMin (BoundingBox ll _ _ _) = x ll
+    xMax (BoundingBox _ _ ur _) = x ur
+    yMin (BoundingBox ll _ _ _) = y ll
+    yMax (BoundingBox _ _ ur _) = y ur
+
+
+
 allPolygonPoints :: AmountOfPoints -> Point -> Radius -> [Point]
 allPolygonPoints n centralPoint r | n < 1 = error "A polygon with 0 or more sides doesn't exist!"
                                   | otherwise = [centralPoint |+| (toPoint (PolarCoord (r, angle)))  |angle <- anglesRads]
@@ -37,7 +47,7 @@ allPolygonPoints n centralPoint r | n < 1 = error "A polygon with 0 or more side
                                     startAngle = 0
                                     anglesDeg = filter (< 360) [startAngle, startAngle + anglePart..360]
                                     anglesRads = map degreesToRadians anglesDeg
-                                    
+
 
 roundPoint :: Point -> CT.ScreenPoint
 roundPoint (Point (x, y)) = (round x, round y)
@@ -91,9 +101,18 @@ instance ToBoundingBox BoundingBox where
     
 instance ToBoundingBox Primitive where
     toBoundingBox (Rectangle (Point (x, y)) (w, h) _) = BoundingBox (Point (x, y)) (Point (x, y + h)) (Point (x + w, y + h)) (Point (x + w, y))
-    toBoundingBox (Circle p r f) = trace ((++) "Circle P:" $ show (p |-| (Point (r, r)))) toBoundingBox (Rectangle (p |-| (Point (r, r))) (2 * r, 2 * r) f)
+    toBoundingBox (Circle p r f) = toBoundingBox (Rectangle (p |-| (Point (r, r))) (2 * r, 2 * r) f)
     toBoundingBox (Polygon _ p r f) = toBoundingBox (Circle p r f)
-    toBoundingBox (Text _ _ _ p _) = BoundingBox p p p p
+
+    toBoundingBox text@(Text _ _ _ p _)
+        = BoundingBox (Point (x, y - height)) p (Point (x + width, y)) (Point (x + width, y - height))
+        where
+            canvasText = toCanvasText text
+            (width_, height_) = useMeasureText canvasText
+            width = fromIntegral width_
+            height = fromIntegral height_
+            Point (x, y) = p
+
     toBoundingBox (Line p1 p2) = toBoundingBox (MultiLine p1 p2 []) 
     toBoundingBox (MultiLine p1 p2 ops) = BoundingBox (Point (xMin, yMin)) (Point (xMin, yMax)) (Point (xMax, yMax)) (Point (xMax, yMin))
                                         where
@@ -129,6 +148,49 @@ instance ToBoundingBox Shape where
                                                                     (Rotation _ angle) = rotation
     toBoundingBox (CompositeShape shapes Nothing Nothing) = foldBoundingBoxes addBoundingBox $ map toBoundingBox shapes
 
+
+
+class (ToBoundingBox a) => Overlaps a where
+    {-
+    The boundingbox of a1 partially overlaps the boundingbox of a2. Ofcourse if overlaps(a1, a2) then
+    overlaps(a2, a1). However, if contains(a1, a2) or contains(a2, a1), then overlaps(a1, a2) == false
+    -}
+    overlaps :: (Overlaps b) => a -> b -> Bool
+    overlaps a1 a2
+        | contains a1 a2 || contains a2 a1 = False
+        | xMax b1 < xMin b2 = False -- b1 is left of b2
+        | xMin b1 > xMax b2 = False -- b2 is right of b2
+        | yMax b1 < yMin b2 = False -- b1 is lower than b2
+        | yMin b1 > yMax b2 = False -- b1 is higher than b2
+        | otherwise = True
+        where
+            b1 = toBoundingBox a1
+            b2 = toBoundingBox a2
+
+    {-
+    The boundingbox of a1 contains the boundingbox of a2. If boundingbox(a2) > boundingbox(a1)
+    then a1 can never contain a2. If boundingbox(a2) == boundingbox(a1) and contains(a1, a2)
+    then also contains(a2, a1).
+    -}
+    contains :: (Overlaps b) => a -> b -> Bool
+    contains a1 a2
+        | xMax b2 <= xMax b1 &&
+          xMin b2 >= xMin b1 &&
+          yMax b2 <= yMax b1 &&
+          yMin b2 >= yMin b1 = True
+        | otherwise = False
+        where
+            b1 = toBoundingBox a1
+            b2 = toBoundingBox a2
+
+    touches :: (Overlaps b) => a -> b -> Bool
+    touches a1 a2 = overlaps a1 a2 || contains a1 a2 || contains a2 a1
+
+
+instance Overlaps Shape
+instance Overlaps Primitive
+instance Overlaps BoundingBox
+
 {-
 Er is een probleem met waar de rotationpoint staat.
 De boundingbox van CompositeShapes ziet er vreemd uit.
@@ -156,13 +218,19 @@ class ToCanvasOut a where
     toCanvasOut :: a -> CT.CanvasOut
     
 instance ToCanvasOut BasicShapesOut where
-    toCanvasOut (DrawShapes canvasId shapes) = CT.CanvasOperations canvasId canvasOperations
+    toCanvasOut (DrawShapes canvasId shapes) = CT.CanvasOperations canvasId (canvasOperations ++ [CT.Frame])
                 where
                     canvasOperations = (concat.(map toCanvasOperations)) shapes
                     
   
 class ToCanvasOperations a where
     toCanvasOperations :: a -> [CT.CanvasOperation]  
+
+
+toCanvasText :: Primitive -> CT.CanvasText
+toCanvasText (Text text fontF fontS _ _)
+    = CT.CanvasText text (CT.Font fontF $ round fontS) CT.AlignLeft
+
 
 instance ToCanvasOperations Shape where
     toCanvasOperations (BaseShape prim lineThick color (Just rotation)) 
@@ -183,14 +251,15 @@ instance ToCanvasOperations Shape where
             
     -- Rotation is broken. When we translated to rotationpoint, translation of prim should be adjusted accordingly (prim' = move prim (-rotationPoint))
                                                                 
-    toCanvasOperations (BaseShape (Text text fontF fontS p fillColor) lineThick strokeColor Nothing)  = [CT.DrawText canvasText p' textStroke textFill]
-                                                                                                      where
-                                                                                                          canvasText = CT.CanvasText text (CT.Font fontF $ round fontS) CT.AlignCenter
-                                                                                                          textFill = CT.TextFill (CT.CanvasColor screenFillColor)
-                                                                                                          textStroke = CT.TextStroke (round lineThick) (CT.CanvasColor screenStrokeColor)
-                                                                                                          screenStrokeColor = roundColor strokeColor
-                                                                                                          screenFillColor = roundColor fillColor
-                                                                                                          p' = roundPoint p
+    toCanvasOperations (BaseShape text@(Text _ _ _ p fillColor) lineThick strokeColor Nothing)
+        = [CT.DrawText canvasText p' textStroke textFill]
+        where
+          canvasText = toCanvasText text
+          textFill = CT.TextFill (CT.CanvasColor screenFillColor)
+          textStroke = CT.TextStroke (round lineThick) (CT.CanvasColor screenStrokeColor)
+          screenStrokeColor = roundColor strokeColor
+          screenFillColor = roundColor fillColor
+          p' = roundPoint p
 
     toCanvasOperations (BaseShape prim lineThick strokeColor Nothing) = case fillColorM of
                                                                             (Just fillColor') -> [CT.DrawPath startingPoint screenPathParts pathStroke pathFill]
@@ -207,7 +276,7 @@ instance ToCanvasOperations Shape where
 
     toCanvasOperations c@(CompositeShape shapes (Just translation) (Just rotation))
         | angle == 0 = toCanvasOperations (CompositeShape shapes (Just translation) Nothing)
-        | otherwise  = trace (show $ rotationPoint) $ trace (show $ toBoundingBox c) $ trace (show movedDrawOperations) [ CT.DoTransform CT.Save
+        | otherwise  = [ CT.DoTransform CT.Save
                        , CT.DoTransform (CT.Translate screenTotalTranslation)
                        , CT.DoTransform (CT.Rotate screenAngle)
                        ] ++ movedDrawOperations ++

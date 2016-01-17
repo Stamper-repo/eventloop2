@@ -64,15 +64,15 @@ data RoutedMessageOut = OutUserCanvas CanvasOut
                       deriving (Eq, Show)
 
 {- |Opcode: 2100-}
-data SystemCanvasIn = SystemMeasuredText CanvasId CanvasText ScreenDimensions {- ^Opcode: 2101-}
+data SystemCanvasIn = SystemMeasuredText CanvasText ScreenDimensions {- ^Opcode: 2101-}
                     deriving (Eq, Show)
                       
 {- |Opcode: 2000-}
-data SystemCanvasOut = SystemMeasureText CanvasId CanvasText  {- ^Opcode: 2001-}
+data SystemCanvasOut = SystemMeasureText CanvasText  {- ^Opcode: 2001-}
                      deriving (Eq, Show)
                       
 {- |Opcode: 0100-}
-data CanvasIn = MeasuredText CanvasId CanvasText ScreenDimensions {- ^Opcode: 0101-}
+data CanvasIn = MeasuredText CanvasText ScreenDimensions {- ^Opcode: 0101-}
               deriving (Eq, Show)
 
 
@@ -93,7 +93,7 @@ data CanvasIn = MeasuredText CanvasId CanvasText ScreenDimensions {- ^Opcode: 01
 data CanvasOut = SetupCanvas CanvasId ZIndex ScreenDimensions CSSPosition {- ^Opcode: 0201-}
                | TeardownCanvas CanvasId {- ^Opcode: 0202-}
                | CanvasOperations CanvasId [CanvasOperation] {- ^Opcode: 0203-}
-               | MeasureText CanvasId CanvasText {- ^Opcode: 0204-}
+               | MeasureText CanvasText {- ^Opcode: 0204-}
                deriving (Eq, Show)
                
 {- |Opcode: 0300-}

@@ -22,19 +22,17 @@ instance FromJSON SystemCanvasIn where
     parseJSON (Object v) = do
                             opCode <- v .: "t" :: Parser Int
                             case opCode of
-                                        2101 -> SystemMeasuredText <$> v .: "canvasid" 
-                                                                <*> (v .: "canvastext" >>= parseJSON)
-                                                                <*> ( (\width height -> (width, height)) 
+                                        2101 -> SystemMeasuredText <$> (v .: "canvastext" >>= parseJSON)
+                                                                   <*> ( (\width height -> (width, height))
                                                                         <$> v .: "width"
                                                                         <*> v .: "height"
-                                                                    )
+                                                                       )
 
 instance FromJSON CanvasIn where
     parseJSON (Object v) = do
                             opCode <- v .: "t" :: Parser Int
                             case opCode of
-                                        101 -> MeasuredText <$> v .: "canvasid" 
-                                                            <*> (v .: "canvastext" >>= parseJSON)
+                                        101 -> MeasuredText <$> (v .: "canvastext" >>= parseJSON)
                                                             <*> ( (\width height -> (width, height)) 
                                                                 <$> v .: "width"
                                                                 <*> v .: "height"
@@ -75,9 +73,8 @@ instance ToJSON RoutedMessageOut where
 
 
 instance ToJSON SystemCanvasOut where
-    toJSON d@(SystemMeasureText canvasId canvasText) = operationObject (toOpcode d) [ toJSON canvasId
-                                                                                    , toJSON canvasText
-                                                                                    ]
+    toJSON d@(SystemMeasureText canvasText) = operationObject (toOpcode d) [ toJSON canvasText
+                                                                           ]
 
 
 instance ToJSON CanvasOut where
@@ -90,9 +87,8 @@ instance ToJSON CanvasOut where
     toJSON d@(CanvasOperations canvasId canvasOperations) = operationObject (toOpcode d) [ toJSON canvasId
                                                                                          , toJSON canvasOperations
                                                                                          ]
-    toJSON d@(MeasureText canvasId text) = operationObject (toOpcode d) [ toJSON canvasId
-                                                                        , toJSON text
-                                                                        ]
+    toJSON d@(MeasureText text) = operationObject (toOpcode d) [ toJSON text
+                                                               ]
 
     
 instance ToJSON CanvasOperation where

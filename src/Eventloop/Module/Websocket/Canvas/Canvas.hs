@@ -46,9 +46,10 @@ canvasInitializer sharedConst sharedIO
         (clientSocket, clientConn, serverSock) <- setupWebsocketConnection ipAddress canvasPort
         safePrintLn (safePrintToken sharedConst) "Canvas connection successfull!"
         sysRecvBuffer <- newEmptyMVar
+        measureTextLock <- newMVar ()
         let
             ioConst = CanvasConstants sysRecvBuffer clientSocket clientConn serverSock
-            measureText_' = measureText_ ioConst
+            measureText_' = measureText_ ioConst measureTextLock
             sharedConst' = sharedConst{measureText = measureText_'}
         return (sharedConst', sharedIO, ioConst, NoState)
 
@@ -117,13 +118,15 @@ route sysRecvBuffer routedIn
                                         return Nothing
 
 
-measureText_ :: IOConstants -> CanvasId -> CanvasText -> IO ScreenDimensions
-measureText_ ioConst canvasId canvasText
+measureText_ :: IOConstants -> MVar () -> CanvasText -> IO ScreenDimensions
+measureText_ ioConst lock canvasText
     = do
+        lock_ <- takeMVar lock
         sendRoutedMessageOut conn outMsg
-        (SystemMeasuredText _ _ screenDims) <- takeMVar buf
+        (SystemMeasuredText _ screenDims) <- takeMVar buf
+        putMVar lock lock_
         return screenDims
     where
         conn = clientConnection ioConst
         buf = canvasSystemReceiveBuffer ioConst
-        outMsg = OutSystemCanvas $ SystemMeasureText canvasId canvasText
+        outMsg = OutSystemCanvas $ SystemMeasureText canvasText

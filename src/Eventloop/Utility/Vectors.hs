@@ -14,6 +14,23 @@ data PolarCoord = PolarCoord (Length, Radians)
 data Point = Point (X, Y)
             deriving (Show, Eq)
 
+
+class Coord a where
+    x :: a -> X
+    y :: a -> Y
+
+instance Coord Point where
+    x (Point (x_, _)) = x_
+    y (Point (_, y_)) = y_
+
+
+class ExtremaCoord a where
+    xMin :: a -> X
+    xMax :: a -> X
+    yMin :: a -> Y
+    yMax :: a -> Y
+
+
 degreesToRadians :: Angle -> Radians
 degreesToRadians d = (pi / 180) * d
 
