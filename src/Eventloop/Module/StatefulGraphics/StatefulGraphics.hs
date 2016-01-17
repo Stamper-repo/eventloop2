@@ -16,6 +16,8 @@ import Eventloop.Types.Events
 import Eventloop.Types.System
 import Eventloop.Utility.Vectors
 
+import Debug.Trace
+
 
 setupStatefulGraphicsModuleConfiguration :: EventloopSetupModuleConfiguration
 setupStatefulGraphicsModuleConfiguration = ( EventloopSetupModuleConfiguration
@@ -83,7 +85,9 @@ calculateNewScene canvasId state outs
             where
                 (state_', performed_') = performStatefulGraphicsOut state_ statefulOut
         (toRedraw, toRemove) = calculateRedraws state' performed
-        basicShapes = map (\(Stateful _ _ shape) -> shape) toRedraw
+        toRedrawIds = statefulIds toRedraw
+        toRemoveIds = trace ("To Redraw: " ++ (show toRedrawIds)) statefulIds toRemove
+        basicShapes = trace ("To Remove: " ++ (show toRemoveIds)) (map (\(Stateful _ _ shape) -> shape) toRedraw)
         removes = map calculateRemove toRemove
 
 {-
@@ -133,30 +137,26 @@ calculateRedrawsForDrawn :: (GraphicsState, GraphicsState) -- Current check and 
                          -> StatefulGraphic
                          -> (GraphicsState, GraphicsState)
 calculateRedrawsForDrawn (toCheck, toRedraw) new@(Stateful id z newGraphic)
-    | not $ null aboveContainedBy = (toCheck', toRedraw)
-    | otherwise                   = foldl calculateRedrawsForDrawn (toCheck', toRedraw') checkNow
+    = foldl calculateRedrawsForDrawn (toCheck', toRedraw') checkNow
     where
         (below, _, above) = splitOn (\(Stateful id' _ _) -> id' == id) toCheck -- Find which graphics are above and below toProcess
 
-        belowContained   = filter (contains new) below
         aboveOverlapped  = filter (overlaps new) above
         aboveContained   = filter (contains new) above
         aboveContainedBy = filter (\sg -> contains sg new) above
         aboveNotTouching = filter (not.(touches new)) above
 
-        belowContainedIds = statefulIds belowContained
-        toCheck' = foldl (\state sg -> fst $ removeGraphic state sg) toCheck (id:belowContainedIds)
+        toCheck' = fst $ removeGraphic toCheck id
         toRedraw' = fst $ addOrReplaceGraphic toRedraw new
 
-        checkNow = aboveOverlapped ++ aboveContained
+        checkNow = aboveOverlapped ++ aboveContained ++ aboveContainedBy
 
 
 calculateRedrawsForRemoved :: (GraphicsState, GraphicsState, GraphicsState) -- Current check and redraw state
                            -> StatefulGraphic
                            -> (GraphicsState, GraphicsState, GraphicsState)
 calculateRedrawsForRemoved (toCheck, toRedraw, toRemove) old@(Stateful id z oldGraphic)
-    | not $ null aboveContainedBy = (toCheck', toRedraw, toRemove)
-    | otherwise                   = (toCheck', toRedraw', toRemove')
+    = (toCheck', toRedraw', toRemove')
     where
         (below, above) = split (\(Stateful _ z' _) -> z' > z) toCheck -- Find which graphics are above and below toProcess
 
@@ -170,11 +170,12 @@ calculateRedrawsForRemoved (toCheck, toRedraw, toRemove) old@(Stateful id z oldG
 
         toRemove' = old:toRemove
 
-        checkNow =  belowContainedBy
-                 ++ belowOverlapped
+        checkNow = belowOverlapped
                  ++ belowContained
+                 ++ belowContainedBy
                  ++ aboveOverlapped
                  ++ aboveContained
+                 ++ aboveContainedBy
         (toCheck', toRedraw') = foldl calculateRedrawsForDrawn (toCheck, toRedraw) checkNow
 
 

@@ -17,7 +17,7 @@ startInitializing systemConfig
         sharedIO <- readTVarIO sharedIOT_
         (sharedConst', sharedIO', moduleConfigs_') <- initializeModules sharedConst sharedIO moduleConfigs_
         atomically $ writeTVar sharedIOT_ sharedIO'
-        return systemConfig{moduleConfigs = moduleConfigs_', sharedIOConstants = sharedConst'}
+        return systemConfig{moduleConfigs = reverse $ moduleConfigs_', sharedIOConstants = sharedConst'}
     where
         sharedConst = sharedIOConstants systemConfig
         sharedIOT_ = sharedIOStateT systemConfig
