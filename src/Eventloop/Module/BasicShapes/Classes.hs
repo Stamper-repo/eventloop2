@@ -49,6 +49,18 @@ allPolygonPoints n centralPoint r | n < 1 = error "A polygon with 0 or more side
                                     anglesRads = map degreesToRadians anglesDeg
 
 
+boundingBoxFromPoints :: [Point] -> BoundingBox
+boundingBoxFromPoints points
+    = BoundingBox (Point (xMin, yMin)) (Point (xMin, yMax)) (Point (xMax, yMax)) (Point (xMax, yMin))
+    where
+        xs = map x points
+        ys = map y points
+        xMin = minimum xs
+        xMax = maximum xs
+        yMin = minimum ys
+        yMax = maximum ys
+
+
 roundPoint :: Point -> CT.ScreenPoint
 roundPoint (Point (x, y)) = (round x, round y)
 
@@ -102,10 +114,14 @@ instance ToBoundingBox BoundingBox where
 instance ToBoundingBox Primitive where
     toBoundingBox (Rectangle (Point (x, y)) (w, h) _) = BoundingBox (Point (x, y)) (Point (x, y + h)) (Point (x + w, y + h)) (Point (x + w, y))
     toBoundingBox (Circle p r f) = toBoundingBox (Rectangle (p |-| (Point (r, r))) (2 * r, 2 * r) f)
-    toBoundingBox (Polygon _ p r f) = toBoundingBox (Circle p r f)
+    toBoundingBox (Polygon a p r _)
+         = boundingBoxFromPoints polyPoints
+         where
+            polyPoints = allPolygonPoints a p r
+
 
     toBoundingBox text@(Text _ _ _ p _)
-        = BoundingBox (Point (x, y - height)) p (Point (x + width, y)) (Point (x + width, y - height))
+        = BoundingBox p (Point (x, y + height)) (Point (x + width, y + height)) (Point (x + width, y))
         where
             canvasText = toCanvasText text
             (width_, height_) = useMeasureText canvasText
@@ -114,15 +130,8 @@ instance ToBoundingBox Primitive where
             Point (x, y) = p
 
     toBoundingBox (Line p1 p2) = toBoundingBox (MultiLine p1 p2 []) 
-    toBoundingBox (MultiLine p1 p2 ops) = BoundingBox (Point (xMin, yMin)) (Point (xMin, yMax)) (Point (xMax, yMax)) (Point (xMax, yMin))
-                                        where
-                                            points = p1:p2:ops
-                                            xs = map (\(Point (x, y)) -> x) points
-                                            ys = map (\(Point (x, y)) -> y) points
-                                            xMin = minimum xs
-                                            xMax = maximum xs
-                                            yMin = minimum ys
-                                            yMax = maximum ys
+    toBoundingBox (MultiLine p1 p2 ops)
+        = boundingBoxFromPoints (p1:p2:ops)
                                         
 instance ToBoundingBox Shape where
     toBoundingBox (BaseShape prim _ _ (Just rotation)) = rotatedBox
