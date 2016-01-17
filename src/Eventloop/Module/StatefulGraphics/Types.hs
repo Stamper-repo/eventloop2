@@ -14,15 +14,18 @@ data StatefulGraphicsOut
     deriving (Eq, Show)
 
 data GraphicPerformed
-    = Drawn StatefulGraphic
-    | Modified StatefulGraphic
-    | Removed StatefulGraphic
+    = Drawn StatefulBB
+    | Modified StatefulBB
+    | Removed StatefulBB
     | NoOp
 
 data StatefulGraphic = Stateful NamedId ZIndex Shape
                         deriving (Show, Eq)
 
-type GraphicsState = [StatefulGraphic]
+data StatefulBB = StatefulBB StatefulGraphic BoundingBox
+                deriving (Show, Eq)
+
+type GraphicsState = [StatefulBB]
 type GraphicsStates = [(CanvasId, GraphicsState)]
 
 
@@ -30,6 +33,12 @@ instance ToBoundingBox StatefulGraphic where
     toBoundingBox (Stateful _ _ shape) = toBoundingBox shape
 
 instance Overlaps StatefulGraphic
+
+
+instance ToBoundingBox StatefulBB where
+    toBoundingBox (StatefulBB _ bb) = bb
+
+instance Overlaps StatefulBB
 
 
 

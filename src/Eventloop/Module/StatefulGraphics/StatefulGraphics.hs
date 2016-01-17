@@ -59,6 +59,18 @@ statefulGraphicsPostProcessor sharedConst sharedIOT ioConst ioStateT out
     = return [out]
 
 
+
+
+getId :: StatefulBB -> NamedId
+getId (StatefulBB (Stateful id _ _) _) = id
+
+getZ :: StatefulBB -> ZIndex
+getZ (StatefulBB (Stateful _ z _) _) = z
+
+getShape :: StatefulBB -> Shape
+getShape (StatefulBB (Stateful _ _ shape) _) = shape
+
+
 replaceGraphicalState :: GraphicsStates -> CanvasId -> GraphicsState -> GraphicsStates
 replaceGraphicalState [] id state = [(id, state)]
 replaceGraphicalState ((id, state):states) canvasId newState
@@ -87,18 +99,17 @@ calculateNewScene canvasId state outs
         (toRedraw, toRemove) = calculateRedraws state' performed
         toRedrawIds = statefulIds toRedraw
         toRemoveIds = trace ("To Redraw: " ++ (show toRedrawIds)) statefulIds toRemove
-        basicShapes = trace ("To Remove: " ++ (show toRemoveIds)) (map (\(Stateful _ _ shape) -> shape) toRedraw)
+        basicShapes = trace ("To Remove: " ++ (show toRemoveIds)) (map getShape toRedraw)
         removes = map calculateRemove toRemove
 
 {-
 Uses yMin as canvas treats rectangle from their lower left corner
 -}
-calculateRemove :: StatefulGraphic
+calculateRemove :: StatefulBB
                 -> ClearPart
-calculateRemove (Stateful _ _ graphic)
+calculateRemove (StatefulBB _ bb)
     = ClearRectangle (round $ xMin bb, round $ yMin bb) (round width, round height)
     where
-        bb = toBoundingBox graphic
         height = (yMax bb) - (yMin bb)
         width = (xMax bb) - (xMin bb)
 
@@ -107,11 +118,12 @@ calculateRedraws :: GraphicsState
                  -> [GraphicPerformed]
                  -> (GraphicsState, GraphicsState) -- Redraw and Remove state
 calculateRedraws _ [] = ([], [])
-calculateRedraws state ((Drawn sg@(Stateful id _ _)):performed)
+calculateRedraws state ((Drawn sbb):performed)
     = (toRedraw', toRemove)
     where
+        id = getId sbb
         (toRedraw, toRemove) = calculateRedraws state performed
-        (_, toRedraw') = calculateRedrawsForDrawn (state, toRedraw) sg
+        (_, toRedraw') = calculateRedrawsForDrawn (state, toRedraw) sbb
 
 calculateRedraws state ((Removed sg):performed)
     = (toRedraw', toRemove')
@@ -134,12 +146,14 @@ However, if there is one graphic to be found that completely contains the drawn 
 Also, all graphics completely behind the drawn graphic, will not be redrawn.
 -}
 calculateRedrawsForDrawn :: (GraphicsState, GraphicsState) -- Current check and redraw state
-                         -> StatefulGraphic
+                         -> StatefulBB
                          -> (GraphicsState, GraphicsState)
-calculateRedrawsForDrawn (toCheck, toRedraw) new@(Stateful id z newGraphic)
+calculateRedrawsForDrawn (toCheck, toRedraw) new
     = foldl calculateRedrawsForDrawn (toCheck', toRedraw') checkNow
     where
-        (below, _, above) = splitOn (\(Stateful id' _ _) -> id' == id) toCheck -- Find which graphics are above and below toProcess
+        id = getId new
+        z  = getZ new
+        (below, _, above) = splitOn (\sbb -> getId sbb == id) toCheck -- Find which graphics are above and below toProcess
 
         aboveOverlapped  = filter (overlaps new) above
         aboveContained   = filter (contains new) above
@@ -153,12 +167,15 @@ calculateRedrawsForDrawn (toCheck, toRedraw) new@(Stateful id z newGraphic)
 
 
 calculateRedrawsForRemoved :: (GraphicsState, GraphicsState, GraphicsState) -- Current check and redraw state
-                           -> StatefulGraphic
+                           -> StatefulBB
                            -> (GraphicsState, GraphicsState, GraphicsState)
-calculateRedrawsForRemoved (toCheck, toRedraw, toRemove) old@(Stateful id z oldGraphic)
+calculateRedrawsForRemoved (toCheck, toRedraw, toRemove) old
     = (toCheck', toRedraw', toRemove')
     where
-        (below, above) = split (\(Stateful _ z' _) -> z' > z) toCheck -- Find which graphics are above and below toProcess
+        id = getId old
+        z = getZ old
+
+        (below, above) = split (\sbb -> getZ sbb > z) toCheck -- Find which graphics are above and below toProcess
 
         belowOverlapped  = filter (overlaps old) below
         belowContained   = filter (contains old) below
@@ -179,24 +196,13 @@ calculateRedrawsForRemoved (toCheck, toRedraw, toRemove) old@(Stateful id z oldG
         (toCheck', toRedraw') = foldl calculateRedrawsForDrawn (toCheck, toRedraw) checkNow
 
 
-statefulIds :: [StatefulGraphic] -> [NamedId]
-statefulIds = map statefulId
+statefulIds :: GraphicsState -> [NamedId]
+statefulIds = map getId
 
 
 statefulId :: StatefulGraphic -> NamedId
 statefulId (Stateful id _ _) = id
 
-{-
-calculateDraws (toCheck, toRedraw, toRemove) (Removed old@(id, z, oldGraphic))
-    | not null aboveContainedBy = (toCheck, toRedraw, toRemove) -- TODO
-    | otherwise                 =
-    where
-        (below, fstAbove, otherAbove) = splitOn (\(_, z', _) -> z' > z) toCheck -- Find which graphics are above and below toProcess
-        above = fstAbove:otherAbove
-        aboveContainedBy = filter (\sg -> contains sg old) above
-        belowContainedBy = filter(\sg -> contains sg old) below
-        contained = filter (contains old) toCheck
--}
 
 split :: (a -> Bool) -> [a] -> ([a], [a])
 split _  []   = ([], [])
@@ -219,10 +225,13 @@ splitOn on (x:xs)
 performStatefulGraphicsOut :: GraphicsState -> StatefulGraphicsOut -> (GraphicsState, GraphicPerformed)
 performStatefulGraphicsOut state (Draw statefulGraphic)
     = case oldStatefulGraphicM of
-        Just oldStatefulGraphic -> (state', Modified statefulGraphic)
-        Nothing                 -> (state', Drawn statefulGraphic)
+        Just oldStatefulGraphic -> (state', Modified statefulBB)
+        Nothing                 -> (state', Drawn statefulBB)
     where
-        (state', oldStatefulGraphicM) = addOrReplaceGraphic state statefulGraphic
+        statefulBB = (StatefulBB statefulGraphic bb)
+        (state', oldStatefulGraphicM) = addOrReplaceGraphic state statefulBB
+        bb = toBoundingBox statefulGraphic
+
 performStatefulGraphicsOut state (Remove id)
     = case oldStatefulGraphicM of
         Just oldStatefulGraphic -> (state', Removed oldStatefulGraphic)
@@ -231,16 +240,19 @@ performStatefulGraphicsOut state (Remove id)
         (state', oldStatefulGraphicM) = removeGraphic state id
 
 
-addGraphic :: GraphicsState -> StatefulGraphic -> GraphicsState
+addGraphic :: GraphicsState -> StatefulBB -> GraphicsState
 addGraphic [] new = [new]
-addGraphic (graphic@(Stateful _ z _):state) new@(Stateful _ z' _)
+addGraphic (graphic:state) new
     | z > z' = new:graphic:state
     | otherwise = graphic:(addGraphic state new)
+    where
+        z  = getZ graphic
+        z' = getZ new
 
 
-addOrReplaceGraphic :: GraphicsState -> StatefulGraphic -> (GraphicsState, (Maybe StatefulGraphic))
+addOrReplaceGraphic :: GraphicsState -> StatefulBB -> (GraphicsState, (Maybe StatefulBB))
 addOrReplaceGraphic [] new = ([new], Nothing) -- Add action
-addOrReplaceGraphic (graphic@(Stateful id z _):state) new@(Stateful id' z' newGraphic)
+addOrReplaceGraphic (graphic:state) new
     | id == id' && z == z' = (new:state, Just graphic)                         -- Simple update
 
     | id == id' && z /= z' = let                                               -- Update action (must be z <= z')
@@ -257,12 +269,18 @@ addOrReplaceGraphic (graphic@(Stateful id z _):state) new@(Stateful id' z' newGr
                                 (state', result) = addOrReplaceGraphic state new
                              in
                              (graphic:state', result)
+    where
+        id  = getId graphic
+        z   = getZ graphic
+        id' = getId new
+        z'  = getZ new
 
 
-removeGraphic :: GraphicsState -> NamedId -> (GraphicsState, (Maybe StatefulGraphic))
+removeGraphic :: GraphicsState -> NamedId -> (GraphicsState, (Maybe StatefulBB))
 removeGraphic [] _ = ([], Nothing)
-removeGraphic (sg@(Stateful id _ _):state) id'
+removeGraphic (sg:state) id'
     | id == id' = (state, Just sg)
     | otherwise = (sg:state', result)
     where
         (state', result) = removeGraphic state id'
+        id = getId sg
