@@ -1,6 +1,9 @@
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Eventloop.Module.Websocket.Canvas.Types where
 
 import Control.Concurrent.MVar
+import GHC.Generics (Generic)
+import Control.DeepSeq
 
 import Eventloop.Types.Common
 
@@ -61,7 +64,7 @@ data RoutedMessageIn = InUserCanvas CanvasIn
                       
 data RoutedMessageOut = OutUserCanvas CanvasOut
                       | OutSystemCanvas SystemCanvasOut
-                      deriving (Eq, Show)
+                      deriving (Eq, Show, Generic, NFData)
 
 {- |Opcode: 2100-}
 data SystemCanvasIn = SystemMeasuredText CanvasText ScreenDimensions {- ^Opcode: 2101-}
@@ -69,7 +72,7 @@ data SystemCanvasIn = SystemMeasuredText CanvasText ScreenDimensions {- ^Opcode:
                       
 {- |Opcode: 2000-}
 data SystemCanvasOut = SystemMeasureText CanvasText  {- ^Opcode: 2001-}
-                     deriving (Eq, Show)
+                     deriving (Eq, Show, Generic, NFData)
                       
 {- |Opcode: 0100-}
 data CanvasIn = MeasuredText CanvasText ScreenDimensions {- ^Opcode: 0101-}
@@ -94,7 +97,7 @@ data CanvasOut = SetupCanvas CanvasId ZIndex ScreenDimensions CSSPosition {- ^Op
                | TeardownCanvas CanvasId {- ^Opcode: 0202-}
                | CanvasOperations CanvasId [CanvasOperation] {- ^Opcode: 0203-}
                | MeasureText CanvasText {- ^Opcode: 0204-}
-               deriving (Eq, Show)
+               deriving (Eq, Show, Generic, NFData)
                
 {- |Opcode: 0300-}
 data CanvasOperation = DrawPath ScreenStartingPoint [ScreenPathPart] PathStroke PathFill {- ^Opcode: 0301 -}
@@ -102,7 +105,7 @@ data CanvasOperation = DrawPath ScreenStartingPoint [ScreenPathPart] PathStroke 
                      | DoTransform CanvasTransform {- ^Opcode: 0303 -}
                      | Clear ClearPart {- ^Opcode: 0304 -}
                      | Frame {- ^Opcode: 0305 -}
-                     deriving (Eq, Show)
+                     deriving (Eq, Show, Generic, NFData)
 
 {- |Opcode: 0400-}
 data ScreenPathPart = MoveTo ScreenPoint {- ^Opcode: 0401-}
@@ -112,7 +115,7 @@ data ScreenPathPart = MoveTo ScreenPoint {- ^Opcode: 0401-}
                     | ArcTo ScreenControlPoint ScreenControlPoint ScreenRadius {- ^Opcode: 0405-}
                     | Arc ScreenCircle ScreenStartingAngle ScreenEndAngle {- ^Opcode: 0406-}
                     | Rectangle ScreenPoint ScreenDimensions {- ^Opcode: 0407-}
-                    deriving (Eq, Show)
+                    deriving (Eq, Show, Generic, NFData)
 
 {- Styling of Shapes -}
 {- |Opcode: 0500-}
@@ -120,14 +123,14 @@ type PathRenderStrokeStyle = RenderStyle
 
 data PathStroke = PathStroke ScreenLineThickness PathRenderStrokeStyle {- ^Opcode: 0501-}
                 | NoPathStroke {- ^Opcode: 0502-}
-                deriving (Eq, Show)
+                deriving (Eq, Show, Generic, NFData)
 
 {- |Opcode: 0600-}
 type PathRenderFillStyle = RenderStyle
 
 data PathFill = PathFill PathRenderFillStyle {- ^Opcode: 0601-}
               | NoPathFill {- ^Opcode: 0602-}
-              deriving (Eq, Show)
+              deriving (Eq, Show, Generic, NFData)
 
 {- |Opcode: 0700-}
 type CanvasColorStop = (ColorStopOffset, ScreenColor)
@@ -135,36 +138,36 @@ type CanvasColorStop = (ColorStopOffset, ScreenColor)
 data RenderStyle = CanvasColor ScreenColor {- ^Opcode: 0701-}
                  | CanvasGradient CanvasGradientType [CanvasColorStop] {- ^Opcode:0702-}
                  | CanvasPattern CanvasImage PatternRepetition {- ^Opcode: 0703-}
-                     deriving (Eq, Show)
+                     deriving (Eq, Show, Generic, NFData)
 
 {- |Opcode: 0800-}                     
 data CanvasImage = CanvasElement CanvasId ScreenPoint ScreenDimensions {- ^Opcode: 0801-}
                  | ImageData ScreenDimensions [ScreenPixel] {- ^Opcode: 0802 
                                                             [ScreenPixel] should be as long as width * height * 4
                                                             -}
-                 deriving (Eq, Show)
+                 deriving (Eq, Show, Generic, NFData)
 {- |Opcode: 0900-}                 
 data PatternRepetition = Repeat {- ^Opcode: 0901-}
                        | RepeatX {- ^Opcode: 0902-}
                        | RepeatY {- ^Opcode: 0903-} 
                        | NoRepeat {- ^Opcode: 0904-}
-                       deriving (Eq, Show)
+                       deriving (Eq, Show, Generic, NFData)
 
 {- |Opcode: 1000-}
 data CanvasGradientType = RadialGradient ScreenCircle ScreenCircle {- ^Opcode: 1001
                                                                        First circle = inner circle, Second circle is enclosing circle
                                                                    -}
                         | LinearGradient ScreenPoint ScreenPoint {- ^Opcode: 1002-}
-                        deriving (Eq, Show)
+                        deriving (Eq, Show, Generic, NFData)
 
 {- To Draw Text -}
 {- |Opcode: 1200-}
 data CanvasText = CanvasText [Char] Font Alignment {- ^Opcode: 1201-}
-                deriving (Eq, Show)
+                deriving (Eq, Show, Generic, NFData)
 
 {- |Opcode: 1300-}
 data Font = Font FontFamily FontSize {- ^Opcode: 1301-}
-          deriving (Eq, Show)
+          deriving (Eq, Show, Generic, NFData)
 
 {- |Opcode: 1400-}
 type TextStrokeRenderStyle = RenderStyle
@@ -172,12 +175,12 @@ type TextFillRenderStyle = RenderStyle
 
 data TextStroke = TextStroke ScreenLineThickness TextStrokeRenderStyle {- ^Opcode: 1401-}
                 | NoTextStroke {- ^Opcode: 1402-}
-                deriving (Eq, Show)
+                deriving (Eq, Show, Generic, NFData)
 
 {- |Opcode: 2400-}
 data TextFill = TextFill TextFillRenderStyle {- ^Opcode: 2401-}
               | NoTextFill {- ^Opcode: 2402-}
-              deriving (Eq, Show)
+              deriving (Eq, Show, Generic, NFData)
 
 {- |Opcode: 1500-}
 data Alignment = AlignLeft {- ^Opcode: 1501-}
@@ -185,7 +188,7 @@ data Alignment = AlignLeft {- ^Opcode: 1501-}
                | AlignCenter {- ^Opcode: 1503-}
                | AlignStart {- ^Opcode: 1504-}
                | AlignEnd {- ^Opcode: 1505-}
-               deriving (Eq, Show)
+               deriving (Eq, Show, Generic, NFData)
                
 {- Transform The Canvas -}
 {- |Opcode: 1600-}
@@ -200,7 +203,7 @@ data CanvasTransform = Save {- ^Opcode: 1601-}
                      | Transform TransformationMatrix {- ^Opcode: 1606-}
                      | SetTransform TransformationMatrix {- ^Opcode: 1607-}
                      | ResetTransform {- ^Opcode: 1608-}
-                     deriving (Eq, Show)
+                     deriving (Eq, Show, Generic, NFData)
 
 {- CSS Position of DOM elements -}
 {- |Opcode: 2200-}
@@ -209,19 +212,19 @@ type CSSTopOffset = CSSUnit
 type CSSMeasurements = (CSSLeftOffset, CSSTopOffset)
 
 data CSSPosition = CSSPosition CSSBindPoint CSSMeasurements {- ^Opcode: 2201-}
-                 deriving (Eq, Show)
+                 deriving (Eq, Show, Generic, NFData)
 
 {- |Opcode: 2300-}
 data CSSBindPoint = CSSFromCenter {- ^Opcode: 2301-}
                   | CSSFromDefault {- ^Opcode: 2302 Usually this is the top left corner of the element -}
-                  deriving (Eq, Show)
+                  deriving (Eq, Show, Generic, NFData)
                      
 {- |Opcode: 1800-}
 data CSSUnit = CSSPixels Int {- ^Opcode: 1801-}
              | CSSPercentage Int {- ^Opcode: 1802-}
-             deriving (Eq, Show)
+             deriving (Eq, Show, Generic, NFData)
              
 {- |Opcode: 1900 -}
 data ClearPart = ClearRectangle ScreenPoint ScreenDimensions {- ^Opcode: 1901-}
                | ClearCanvas {- ^Opcode: 1902-}
-               deriving (Eq, Show)
+               deriving (Eq, Show, Generic, NFData)

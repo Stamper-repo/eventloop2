@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Eventloop.Module.BasicShapes.Types
     ( module Eventloop.Module.BasicShapes.Types
     , CT.CanvasId
@@ -5,6 +6,10 @@ module Eventloop.Module.BasicShapes.Types
 
 import qualified Eventloop.Module.Websocket.Canvas.Types as CT
 import Eventloop.Utility.Vectors
+
+import GHC.Generics (Generic)
+import Control.DeepSeq
+
 
 type GraphicalNumeric = Float
 type Translation = Point
@@ -37,7 +42,7 @@ type FontSize = GraphicalNumeric
 
 
 data BasicShapesOut = DrawShapes CT.CanvasId [Shape]
-                    deriving (Show, Eq)
+                    deriving (Show, Eq, Generic, NFData)
 
 data Shape = BaseShape { primitive :: Primitive
                        , strokeLineThickness :: StrokeLineThickness
@@ -48,7 +53,7 @@ data Shape = BaseShape { primitive :: Primitive
                             , translationM :: (Maybe Translation)
                             , rotationM :: (Maybe Rotation)
                             } -- ^Should contain atleast 1 shape
-           deriving (Show, Eq)
+           deriving (Show, Eq, Generic, NFData)
            
 data Primitive = Rectangle { translation :: Translation -- ^| Translation is the corner closes to origin. Visually in canvas, this is top left. In a Cartesian coördinate system, this is bottom left.
                            , dimensions :: Dimensions
@@ -76,15 +81,15 @@ data Primitive = Rectangle { translation :: Translation -- ^| Translation is the
                            , point2 :: Point
                            , otherPoints :: [Point]
                            }
-               deriving (Show, Eq)
+               deriving (Show, Eq, Generic, NFData)
            
            
 data Rotation = Rotation RotatePoint Angle -- ^| Rotation is around a point on the canvas. May be the centre of the boundingbox (enclosing rectangle) or an arbitrary point. Angle is in degrees and counter-clockwise in the coördinate system(from the x-axis to the y-axis) and visually on canvas clock-wise.
-            deriving (Show, Eq)
+            deriving (Show, Eq, Generic, NFData)
 
 data RotatePoint = AroundCenter
                  | AroundPoint Point
-                deriving (Show, Eq)
+                deriving (Show, Eq, Generic, NFData)
               
 data BoundingBox = BoundingBox LowerLeft UpperLeft UpperRight LowerRight -- ^| The point indications are from the perspective of a regular Cartesian coördinate system.
                 deriving (Show, Eq)

@@ -1,4 +1,8 @@
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Eventloop.Utility.Vectors where
+
+import GHC.Generics (Generic)
+import Control.DeepSeq
 
 type Angle = Float -- ^In degrees
 type Radians = Float
@@ -12,7 +16,7 @@ data PolarCoord = PolarCoord (Length, Radians)
                 deriving (Show, Eq)
                 
 data Point = Point (X, Y)
-            deriving (Show, Eq)
+            deriving (Show, Eq, Generic, NFData)
 
 
 class Coord a where

@@ -1,5 +1,9 @@
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Eventloop.Module.Timer.Types where
-    
+
+import GHC.Generics (Generic)
+import Control.DeepSeq
+
 import Control.Concurrent.Datastructures.BlockingConcurrentQueue
 import Control.Concurrent.Timer
 import Control.Concurrent.Suspend.Lifted
@@ -16,4 +20,4 @@ data TimerIn = Tick TimerId
 data TimerOut = SetTimer TimerId MicroSecondDelay
               | SetIntervalTimer TimerId MicroSecondDelay
               | UnsetTimer TimerId
-              deriving (Eq, Show)
+              deriving (Eq, Show, Generic, NFData)

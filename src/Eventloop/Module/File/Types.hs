@@ -1,6 +1,9 @@
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass, StandaloneDeriving #-}
 module Eventloop.Module.File.Types where
 
 import System.IO
+import GHC.Generics (Generic)
+import Control.DeepSeq
 
 type OpenFile = (FilePath, Handle, IOMode)
 
@@ -20,4 +23,7 @@ data FileOut = OpenFile FilePath IOMode
              | RetrieveChar FilePath
              | IfEOF FilePath
              | WriteTo FilePath [Char]
-             deriving (Eq, Show)
+             deriving (Eq, Show, Generic, NFData)
+
+deriving instance Generic IOMode
+deriving instance NFData IOMode

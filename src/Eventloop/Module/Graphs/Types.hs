@@ -1,8 +1,12 @@
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Eventloop.Module.Graphs.Types
     ( module Eventloop.Module.Graphs.Types
     , M.MouseEvent(..)
     , M.MouseButton(..)
     ) where
+
+import GHC.Generics (Generic)
+import Control.DeepSeq
 
 import qualified Eventloop.Module.Websocket.Mouse.Types as M
     
@@ -17,7 +21,7 @@ data GraphsIn = Mouse M.MouseEvent Pos
 data GraphsOut = SetupGraphs
                | DrawGraph Graph
                | Instructions [String]
-               deriving (Eq, Show)
+               deriving (Eq, Show, Generic, NFData)
               
 ----- Graph -----
 type Label   = Char
@@ -31,7 +35,7 @@ data Graph = Graph
             , edges    :: [Edge]
             , directed :: Directed
             , weighted :: Weighted
-            } deriving (Eq, Show)
+            } deriving (Eq, Show, Generic, NFData)
             
 ----- Graph Graphical -----            
 data Color = Red
@@ -43,16 +47,16 @@ data Color = Red
            | Orange
            | Black
            | White
-           deriving (Eq, Show)
+           deriving (Eq, Show, Generic, NFData)
 
 data Thickness = Thin
                | Thick
-               deriving (Eq, Show)
+               deriving (Eq, Show, Generic, NFData)
 
 data Directed  = Directed
                | Undirected
-                deriving (Eq, Show)
+                deriving (Eq, Show, Generic, NFData)
                
 data Weighted  = Weighted
                | Unweighted
-               deriving (Eq, Show)
+               deriving (Eq, Show, Generic, NFData)

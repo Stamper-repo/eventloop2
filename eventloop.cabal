@@ -109,7 +109,8 @@ library
                        aeson >=0.8 && <0.9, 
                        bytestring >=0.10 && <0.11,
                        concurrent-utilities >=0.2 && <0.3,
-                       stm >=2.4 && <2.5
+                       stm >=2.4 && <2.5,
+                       deepseq >=1.4 && <1.5
   
   -- Directories containing source files.
   hs-source-dirs:      src

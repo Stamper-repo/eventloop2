@@ -1,4 +1,8 @@
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Eventloop.Utility.Trees.GeneralTree where
+
+import GHC.Generics (Generic)
+import Control.DeepSeq
 
 import Eventloop.Module.BasicShapes.Types
 import Eventloop.Utility.Vectors
@@ -6,14 +10,14 @@ import Eventloop.Utility.Trees.LayoutTree
 
 
 data GeneralTree = GeneralTreeBox [GeneralNodeContent] [(GeneralLine, GeneralTree)] 
-                deriving (Show, Eq)
+                deriving (Show, Eq, Generic, NFData)
 
 data GeneralNodeContent = GeneralNodeText FillColor String
                         | GeneralNode FillColor Radius
-                        deriving (Show, Eq)
+                        deriving (Show, Eq, Generic, NFData)
                         
 data GeneralLine = GeneralLine StrokeColor
-                    deriving (Show, Eq)
+                    deriving (Show, Eq, Generic, NFData)
                     
                     
 type LeftOffset   = X

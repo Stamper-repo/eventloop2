@@ -1,4 +1,8 @@
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Eventloop.Module.Websocket.Mouse.Types where
+
+import GHC.Generics (Generic)
+import Control.DeepSeq
 
 import Eventloop.Types.Common
 import Eventloop.Utility.Vectors
@@ -22,4 +26,4 @@ data MouseEvent = Click MouseButton
 data MouseButton = MouseLeft 
                  | MouseRight 
                  | MouseMiddle
-                 deriving (Eq, Show)
+                 deriving (Eq, Show, Generic, NFData)

@@ -1,4 +1,8 @@
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Eventloop.Types.Events where
+
+import GHC.Generics (Generic)
+import Control.DeepSeq
 
 import Eventloop.Module.Websocket.Keyboard.Types
 import Eventloop.Module.Websocket.Mouse.Types
@@ -34,4 +38,4 @@ data Out = OutFile FileOut
          | OutGraphs GraphsOut
          | OutStatefulGraphics CanvasId [StatefulGraphicsOut]
          | Stop
-         deriving (Eq, Show)
+         deriving (Eq, Show, Generic, NFData)

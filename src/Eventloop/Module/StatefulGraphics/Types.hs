@@ -1,7 +1,11 @@
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Eventloop.Module.StatefulGraphics.Types
     ( module Eventloop.Module.Websocket.Canvas.Types
     , module Eventloop.Module.StatefulGraphics.Types
     ) where
+
+import GHC.Generics (Generic)
+import Control.DeepSeq
 
 import Eventloop.Types.Common
 import Eventloop.Module.BasicShapes.Types
@@ -11,7 +15,7 @@ import Eventloop.Module.Websocket.Canvas.Types (CanvasId, ZIndex)
 data StatefulGraphicsOut
     = Draw StatefulGraphic
     | Remove NamedId
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic, NFData)
 
 data GraphicPerformed
     = Drawn StatefulBB
@@ -20,7 +24,7 @@ data GraphicPerformed
     | NoOp
 
 data StatefulGraphic = Stateful NamedId ZIndex Shape
-                        deriving (Show, Eq)
+                        deriving (Show, Eq, Generic, NFData)
 
 data StatefulBB = StatefulBB StatefulGraphic BoundingBox
                 deriving (Show, Eq)

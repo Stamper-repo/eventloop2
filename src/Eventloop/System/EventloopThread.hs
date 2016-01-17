@@ -1,5 +1,6 @@
 module Eventloop.System.EventloopThread where
 
+import Control.DeepSeq
 import Control.Exception
 import Control.Monad
 import Control.Concurrent.ExceptionUtility
@@ -30,6 +31,7 @@ startEventlooping systemConfig
               processedInEvents <- processEvents "Preprocessing" systemConfig modulePreprocessors [inEvent] -- Preprocess it
               outEvents <- eventloopSteps eventloop progstateT_ processedInEvents  -- Eventloop over the preprocessed In events
               processedOutEvents <- processEvents "Postprocessing" systemConfig modulePostprocessors outEvents -- Postprocess the Out events
+              evaluatedOutEvents <- evaluate $ force processedOutEvents
               putAllInBlockingConcurrentQueue outEventQueue_ processedOutEvents -- Send the processed Out events to the OutRouter
         )
     where

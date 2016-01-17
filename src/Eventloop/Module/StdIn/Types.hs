@@ -1,4 +1,8 @@
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Eventloop.Module.StdIn.Types where
+
+import GHC.Generics (Generic)
+import Control.DeepSeq
 
 data StdInIn = StdInReceivedContents [[Char]]
              | StdInReceivedLine [Char]
@@ -8,4 +12,4 @@ data StdInIn = StdInReceivedContents [[Char]]
 data StdInOut = StdInReceiveContents
               | StdInReceiveLine
               | StdInReceiveChar
-              deriving (Eq, Show)
+              deriving (Eq, Show, Generic, NFData)
