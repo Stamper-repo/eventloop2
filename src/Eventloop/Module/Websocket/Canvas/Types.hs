@@ -186,8 +186,6 @@ data TextFill = TextFill TextFillRenderStyle {- ^Opcode: 2401-}
 data Alignment = AlignLeft {- ^Opcode: 1501-}
                | AlignRight {- ^Opcode: 1502-}
                | AlignCenter {- ^Opcode: 1503-}
-               | AlignStart {- ^Opcode: 1504-}
-               | AlignEnd {- ^Opcode: 1505-}
                deriving (Eq, Show, Generic, NFData)
                
 {- Transform The Canvas -}

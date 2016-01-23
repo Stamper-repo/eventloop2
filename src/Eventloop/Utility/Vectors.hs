@@ -27,6 +27,10 @@ instance Coord Point where
     x (Point (x_, _)) = x_
     y (Point (_, y_)) = y_
 
+instance Coord PolarCoord where
+    x = x.toPoint
+    y = y.toPoint
+
 
 class ExtremaCoord a where
     xMin :: a -> X
@@ -55,17 +59,27 @@ lengthBetweenPoints p1 p2 = sqrt (x'^2 + y'^2)
 
 differenceBetweenPoints :: Point -> Point -> (X, Y)
 differenceBetweenPoints (Point (x1, y1)) (Point (x2, y2)) = (x2 - x1, y2 - y1)
-                       
-                       
+
+
+averagePoint :: [Point] -> Point
+averagePoint points
+    = average
+        where
+            total = foldl (|+|) originPoint points
+            average = total |\ (toInteger (length points))
+
+
 originPoint = Point (0,0)
 
 class Translate a where
     translate :: Point -> a -> a
 
 
-class (RotateLeftAround a) => Vector2D a where
+class (Coord a) => Vector2D a where
     (|+|) :: a -> a -> a
     (|-|) :: a -> a -> a
+    (|\)  :: (Real b) => a -> b -> a
+    (|*)  :: (Real b) => a -> b -> a
     negateVector :: a -> a
 
 instance Vector2D PolarCoord where
@@ -74,9 +88,26 @@ instance Vector2D PolarCoord where
     negateVector pc1 = rotateLeftAround (Point (0,0)) 180 pc1
     
 instance Vector2D Point where
-    (Point (x1, y1)) |+| (Point (x2, y2)) = Point (x1 + x2, y1 + y2)
-    (Point (x1, y1)) |-| (Point (x2, y2)) = Point (x1 - x2, y1 - y2)
-    negateVector (Point (x, y)) = Point (-x, -y)
+    (Point (x1, y1)) |+| (Point (x2, y2))
+        = Point (x1 + x2, y1 + y2)
+
+    (Point (x1, y1)) |-| (Point (x2, y2))
+        = Point (x1 - x2, y1 - y2)
+
+    (Point (x1, y1)) |\  scalar
+        = Point (fromRational x', fromRational y')
+        where
+            x' = toRational x1 / toRational scalar
+            y' = toRational y1 / toRational scalar
+
+    (Point (x1, y1)) |*  scalar
+        = Point (fromRational x', fromRational y')
+        where
+            x' = toRational x1 * toRational scalar
+            y' = toRational y1 * toRational scalar
+
+    negateVector (Point (x, y))
+        = Point (-x, -y)
 
     
 class ToPoint a where
@@ -96,13 +127,13 @@ instance ToPolarCoord Point where
                                 | x > 0  && y == 0 = PolarCoord (x, 0.0 * pi)
                                 | x < 0  && y == 0 = PolarCoord (x, 1.0 * pi)
                                 | x > 0 && y > 0   = PolarCoord (len, 0.0 * pi + localRads)
-                                | x < 0 && y > 0   = PolarCoord (len, 0.5 * pi + localRads)
+                                | x < 0 && y > 0   = PolarCoord (len, 1.0 * pi - localRads)
                                 | x < 0 && y < 0   = PolarCoord (len, 1.0 * pi + localRads)
-                                | x > 0 && y < 0   = PolarCoord (len, 1.5 * pi + localRads)
+                                | x > 0 && y < 0   = PolarCoord (len, 2.0 * pi - localRads)
                                  where
                                     x' = abs x
                                     y' = abs y
-                                    localRads = atan (y' / x')
+                                    localRads = asin (y' / len)
                                     len = lengthToPoint (Point (x, y))
                             
 
@@ -112,11 +143,12 @@ class RotateLeftAround a where
  
 instance RotateLeftAround PolarCoord where
     rotateLeftAround rotatePoint aDeg = toPolarCoord.(rotateLeftAround rotatePoint aDeg).toPoint
+
  
 instance RotateLeftAround Point where 
     rotateLeftAround rotatePoint aDeg p = p'' |+| rotatePoint
                                         where
-                                            p' = rotatePoint |-| p
+                                            p' = p |-| rotatePoint
                                             pc'@(PolarCoord (len', rads')) = toPolarCoord p'
                                             aRads = degreesToRadians aDeg
                                             pc'' = PolarCoord (len', rads' + aRads)

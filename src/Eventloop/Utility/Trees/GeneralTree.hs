@@ -131,7 +131,7 @@ textSize str = (textWidth, textHeight)
 
 
 treeIndex :: Int -> Offset -> Shape
-treeIndex i (x, y) = BaseShape (Text iStr "Courier" 20 p (255,75,75, 255)) 1 (0,0,0,0) Nothing
+treeIndex i (x, y) = Text iStr "Courier" 20 p AlignLeft (255,75,75, 255) 1 (0,0,0,0) Nothing
                 where
                     iStr = show i
                     (wText, hText) = textSize iStr

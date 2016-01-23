@@ -53,8 +53,6 @@ instance FromJSON Alignment where
                                         1501 -> AlignLeft
                                         1502 -> AlignRight
                                         1503 -> AlignCenter
-                                        1504 -> AlignStart
-                                        1505 -> AlignEnd
                             
     
     

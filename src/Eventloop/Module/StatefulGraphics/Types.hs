@@ -32,12 +32,16 @@ data StatefulBB = StatefulBB StatefulGraphic BoundingBox
 type GraphicsState = [StatefulBB]
 type GraphicsStates = [(CanvasId, GraphicsState)]
 
+instance ToPoints StatefulGraphic where
+    toPoints (Stateful _ _ shape) = toPoints shape
 
 instance ToBoundingBox StatefulGraphic where
     toBoundingBox (Stateful _ _ shape) = toBoundingBox shape
 
 instance Overlaps StatefulGraphic
 
+instance ToPoints StatefulBB where
+    toPoints (StatefulBB stateful _) = toPoints stateful
 
 instance ToBoundingBox StatefulBB where
     toBoundingBox (StatefulBB _ bb) = bb

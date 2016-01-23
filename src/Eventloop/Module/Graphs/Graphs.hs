@@ -101,9 +101,8 @@ graphsPostProcessor sharedConst sharedIOT ioConst ioStateT (OutGraphs (Instructi
         startPLine  = Point (0, 0)
         endPLine    = Point (canvasGraphsWidth, 0)
         lineHeight  = 2
-        lineShape   = BS.BaseShape (BS.Line startPLine endPLine) lineHeight (0,0,0,255) Nothing
-        textShape   = (\line p -> BS.BaseShape (textPrim line p) 0 (0,0,0,0) Nothing) 
-        textPrim    = (\line p -> BS.Text line textFont textSize p (0,0,0,255))
+        lineShape   = BS.Line startPLine endPLine lineHeight (0,0,0,255) Nothing
+        textShape   = (\line p -> BS.Text line textFont textSize p BS.AlignLeft (0,0,0,255) 0 (0,0,0,0) Nothing)
         textMargin        = 2
         heights           = iterate ((+) (textSize + textMargin)) lineHeight
         isAndHeights      = zip is heights
@@ -153,32 +152,27 @@ graphToShapes graph
 
 nodeToShapes :: Node -> [BS.Shape]
 nodeToShapes (l, p, col)
-    = [BS.BaseShape nodePrim 2 (0,0,0,255) Nothing, BS.BaseShape textPrim 3 (0,0,0,255) Nothing]
+    = [ BS.Circle (Point p) nodeRadius color 2 (0,0,0,255) Nothing
+      , BS.Text lStr textFont textSize (Point p) BS.AlignLeft (0,0,0,255) 3 (0,0,0,255) Nothing
+      ]
     where
         color = colorToRGBAColor col
         lStr = [l]
-        nodePrim = BS.Circle (Point p) nodeRadius color
-        textPrim = BS.Text lStr textFont textSize (Point p) (0,0,0,255)
 
         
 edgeToShapes :: Node -> Node -> Edge -> Directed -> Weighted -> [BS.Shape]
 edgeToShapes (_, p1, _) (_, p2, _) (_, _, col, w, thick) directed weighted
     = lineShape:(weightShapes ++ directShapes)
     where
-        directShapes | directed == Directed   = [arrowShape arrow1Prim, arrowShape arrow2Prim]
+        directShapes | directed == Directed   = [ BS.Line (Point arrowStart) (Point arrow1End) thickness color Nothing
+                                                , BS.Line (Point arrowStart) (Point arrow2End) thickness color Nothing
+                                                ]
                      | directed == Undirected = []
-                    where
-                        arrow1Prim = BS.Line (Point arrowStart) (Point arrow1End)
-                        arrow2Prim = BS.Line (Point arrowStart) (Point arrow2End)
-                        arrowShape prim = BS.BaseShape prim thickness color Nothing
-        weightShapes | weighted == Weighted   = [BS.BaseShape weightPrim 0 (0,0,0,0) Nothing]
+        weightShapes | weighted == Weighted   = [BS.Text wStr textFont textSize (Point textPos) BS.AlignLeft (0,0,0,255) 0 (0,0,0,0) Nothing]
                      | weighted == Unweighted = []
                     where
                         wStr = show w
-                        weightPrim = BS.Text wStr textFont textSize (Point textPos) (0,0,0,255)
-        lineShape = BS.BaseShape linePrim thickness color Nothing
-                where
-                    linePrim = BS.Line (Point lineStart) (Point lineEnd)
+        lineShape = BS.Line (Point lineStart) (Point lineEnd) thickness color Nothing
         thickness = thicknessToFloat thick
         color = colorToRGBAColor col
         -- Margin line vector stuff

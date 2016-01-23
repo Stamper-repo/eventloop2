@@ -36,12 +36,12 @@ printTree (LBox (Point offset) _ botConnect nodeContents childrenWithLines) = Co
 
                                                     
 printNodeContent :: Offset -> LayoutNodeContent -> Shape
-printNodeContent (xOffset, yOffset) (LayoutNodeText fillColor p text (_, height)) = BaseShape (Text text textFont height ((Point (xOffset, yOffset)) |+| p) fillColor) textThickness (0,0,0,0) Nothing
-printNodeContent (xOffset, yOffset) (LayoutNode fillColor p r)                    = BaseShape (Circle ((Point (xOffset, yOffset)) |+| p) r fillColor) lineThickness (0,0,0,0) Nothing
+printNodeContent (xOffset, yOffset) (LayoutNodeText fillColor p text (_, height)) = Text text textFont height ((Point (xOffset, yOffset)) |+| p) AlignLeft fillColor textThickness (0,0,0,0) Nothing
+printNodeContent (xOffset, yOffset) (LayoutNode fillColor p r)                    = Circle ((Point (xOffset, yOffset)) |+| p) r fillColor lineThickness (0,0,0,0) Nothing
 
 
 printLine :: Point -> (LayoutLine, LayoutTree) -> Shape
-printLine startPoint ((LayoutLine lineColor),(LBox point topConnect _ _ _)) = BaseShape (Line startMarg endMarg) lineThickness lineColor Nothing
+printLine startPoint ((LayoutLine lineColor),(LBox point topConnect _ _ _)) = Line startMarg endMarg lineThickness lineColor Nothing
                                                                         where
                                                                             startMarg = marginizeLinePoints marginLine startPoint endPoint
                                                                             endMarg   = marginizeLinePoints marginLine endPoint startPoint

@@ -76,8 +76,6 @@ instance ToOpcode Alignment where
     toOpcode (AlignLeft)   = 1501
     toOpcode (AlignRight)  = 1502
     toOpcode (AlignCenter) = 1503
-    toOpcode (AlignStart)  = 1504
-    toOpcode (AlignEnd)    = 1505
     
 instance ToOpcode CanvasTransform where
     toOpcode (Save)           = 1601
