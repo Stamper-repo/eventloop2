@@ -28,6 +28,23 @@ Split into points to calc boundingbox
     MultiLine - Split into the different points
 -}
 
+{-
+Bugs:
+- BoundingBox of circle fails. Cannot use 'rotate points on circle' method.
+- Difficult rotation? (Stacked composite shapes)
+-}
+
+data GeometricPrimitive = Points [Point]
+                        | CircleArea Point Radius
+
+
+instance RotateLeftAround GeometricPrimitive where
+    rotateLeftAround p angle (Points points)
+        = Points $ map (rotateLeftAround p angle) points
+    rotateLeftAround p angle (CircleArea p' r)
+        = CircleArea (rotateLeftAround p angle p') r
+
+
 opOnBoundingBox :: (Point -> Point) -> BoundingBox -> BoundingBox
 opOnBoundingBox op (BoundingBox p1 p2 p3 p4) = BoundingBox (op p1)
                                                            (op p2)
@@ -40,6 +57,20 @@ instance ExtremaCoord BoundingBox where
     xMax (BoundingBox _ _ ur _) = x ur
     yMin (BoundingBox ll _ _ _) = y ll
     yMax (BoundingBox _ _ ur _) = y ur
+
+
+instance ExtremaCoord GeometricPrimitive where
+    xMin (Points points) = xMin points
+    xMin (CircleArea (Point (x, y)) r) = x - r
+
+    xMax (Points points) = xMax points
+    xMax (CircleArea (Point (x, y)) r) = x + r
+
+    yMin (Points points) = yMin points
+    yMin (CircleArea (Point (x, y)) r) = y - r
+
+    yMax (Points points) = yMax points
+    yMax (CircleArea (Point (x, y)) r) = y + r
 
 
 instance RotateLeftAround BoundingBox where
@@ -57,21 +88,19 @@ allPolygonPoints n centralPoint r | n < 1 = error "A polygon with 0 or more side
                                     anglesRads = map degreesToRadians anglesDeg
 
 
-boundingBoxFromPoints :: [Point] -> BoundingBox
-boundingBoxFromPoints points
-    = BoundingBox (Point (xMin, yMin)) (Point (xMin, yMax)) (Point (xMax, yMax)) (Point (xMax, yMin))
+boundingBoxFromPrimitives :: [GeometricPrimitive] -> BoundingBox
+boundingBoxFromPrimitives primitives
+    = BoundingBox (Point (xMin_, yMin_)) (Point (xMin_, yMax_)) (Point (xMax_, yMax_)) (Point (xMax_, yMin_))
     where
-        xs = map x points
-        ys = map y points
-        xMin = minimum xs
-        xMax = maximum xs
-        yMin = minimum ys
-        yMax = maximum ys
+        xMin_ = minimum $ map xMin primitives
+        xMax_ = maximum $ map xMax primitives
+        yMin_ = minimum $ map yMin primitives
+        yMax_ = maximum $ map yMax primitives
 
 
 normalizeBBox :: BoundingBox -> BoundingBox
 normalizeBBox (BoundingBox p1 p2 p3 p4)
-    = boundingBoxFromPoints [p1, p2, p3, p4]
+    = boundingBoxFromPrimitives [Points [p1, p2, p3, p4]]
 
 
 roundPoint :: Point -> CT.ScreenPoint
@@ -100,35 +129,44 @@ instance Translate Shape where
     translate pTrans ml@(MultiLine {point1=p1, point2=p2, otherPoints=ops})
         = ml {point1 = (p1 |+| pTrans), point2 = (p2 |+| pTrans),  otherPoints = (map ((|+|) pTrans) ops)}
 
+instance Translate GeometricPrimitive where
+    translate p (Points points) = Points (map (|+| p) points)
+    translate p (CircleArea p' r) = CircleArea (p |+| p') r
 
-class ToPoints a where
-    toPoints :: a -> [Point]
 
-instance ToPoints BoundingBox where
-    toPoints (BoundingBox ll ul ur lr) = [ll, ul, ur, lr]
+class ToPrimitives a where
+    toPrimitives :: a -> [GeometricPrimitive]
 
-instance ToPoints Shape where
-    toPoints (CompositeShape shapes translationM Nothing)
-        | isJust translationM = map (|+| (fromJust translationM)) allPoints
-        | otherwise           = allPoints
+instance ToPrimitives BoundingBox where
+    toPrimitives (BoundingBox ll ul ur lr) = [Points [ll, ul, ur, lr]]
+
+instance ToPrimitives Shape where
+    toPrimitives (CompositeShape shapes translationM Nothing)
+        | isJust translationM = map (translate (fromJust translationM)) primitives
+        | otherwise           = primitives
         where
-            allPoints = concat $ map toPoints shapes
-    toPoints (Rectangle {translation=(Point (x, y)), dimensions=(w, h), rotationM=Nothing})
-        = [ Point (x, y)
-          , Point (x, y + h)
-          , Point (x + w, y + h)
-          , Point (x + w, y)
+            primitives = concat $ map toPrimitives shapes
+    toPrimitives (Rectangle {translation=(Point (x, y)), dimensions=(w, h), strokeLineThickness=thick, rotationM=Nothing})
+        = [ Points [ Point (x - hthick, y - hthick)
+                   , Point (x - hthick, y + h + hthick)
+                   , Point (x + w + hthick, y + h + hthick)
+                   , Point (x + w + hthick, y - hthick)
+                   ]
           ]
-    toPoints (Circle {translation=(Point (x, y)), radius=r, rotationM=Nothing})
-        = [ Point (x, y - r)
-          , Point (x - r, y)
-          , Point (x + r, y)
-          , Point (x, y + r)
-          ]
-    toPoints (Polygon {amountOfPoints=a, translation=p, radius=r, rotationM=Nothing})
-         = allPolygonPoints a p r
-    toPoints text@(Text {translation=(Point (x,y)), alignment=align, rotationM=Nothing})
-        = case align of
+        where
+            hthick = 0.5 * thick
+    toPrimitives (Circle {translation=p, radius=r, strokeLineThickness=thick, rotationM=Nothing})
+        = [CircleArea p (r + 0.5 * thick)]
+    toPrimitives (Polygon {amountOfPoints=a, translation=p, radius=r, strokeLineThickness=thick, rotationM=Nothing})
+        | a > 2  = toPrimitives (MultiLine p1 p2 ops thick undefined Nothing)
+        | a == 2 = toPrimitives (Line p1 p2 thick undefined Nothing)
+        | a == 1 = [Points (take 1 points)]
+        | a == 0 = [Points []]
+        where
+             points = allPolygonPoints a p r
+             (p1:p2:ops) = points
+    toPrimitives text@(Text {translation=(Point (x,y)), alignment=align, rotationM=Nothing})
+        = [ Points $ case align of
             CT.AlignLeft   -> [ Point (x, y)
                               , Point (x, y + height)
                               , Point (x + width, y)
@@ -144,6 +182,7 @@ instance ToPoints Shape where
                               , Point (x - width, y)
                               , Point (x - width, y + height)
                               ]
+          ]
         where
             canvasText = toCanvasText text
             (width_, height_) = useMeasureText canvasText
@@ -152,17 +191,29 @@ instance ToPoints Shape where
             height = fromIntegral height_
             hheight = height * 0.5
 
-    toPoints (Line {point1=p1, point2=p2, rotationM=Nothing})
-        = [p1, p2]
-    toPoints (MultiLine {point1=p1, point2=p2, otherPoints=ops, rotationM=Nothing})
-        = p1:p2:ops
-    toPoints shape
-        = map (rotateLeftAround rotatePoint angle) points
+    toPrimitives (Line {point1=p1, point2=p2, strokeLineThickness=thick, rotationM=Nothing})
+        = [ Points [ followVector (0.5 * thick) upPerpVector p1
+                   , followVector (0.5 * thick) upPerpVector p2
+                   , followVector (0.5 * thick) downPerpVector p1
+                   , followVector (0.5 * thick) downPerpVector p2
+                   ]
+          ]
+        where
+            upPerpVector = upPerpendicular p1 p2
+            downPerpVector = negateVector upPerpVector
+    toPrimitives (MultiLine {point1=p1, point2=p2, otherPoints=ops, strokeLineThickness=thick, rotationM=Nothing})
+        = concat $ map toPrimitives lines
+        where
+            allPoints = p1:p2:ops
+            tailPoints = p2:ops
+            linePoints = zip allPoints tailPoints
+            lines = map (\(p, p') -> Line p p' thick undefined Nothing) linePoints
+    toPrimitives shape
+        = map (rotateLeftAround rotatePoint angle) (toPrimitives shapePreRotate)
         where
             shapePreRotate = shape{rotationM=Nothing}
             (Just rotation@(Rotation _ angle)) = rotationM shape
             rotatePoint = findRotationPoint shapePreRotate rotation
-            points = toPoints shapePreRotate
 
 
 class ToCenter a where
@@ -208,14 +259,15 @@ instance ToCenter Shape where
             (Rotation _ angle) = rotation
 
 
-class (ToPoints a) => ToBoundingBox a where
+class (ToPrimitives a) => ToBoundingBox a where
     toBoundingBox :: a -> BoundingBox
 
 instance ToBoundingBox BoundingBox where
     toBoundingBox box = box
     
 instance ToBoundingBox Shape where
-    toBoundingBox a = boundingBoxFromPoints $ toPoints a
+    toBoundingBox a
+        = boundingBoxFromPrimitives $ toPrimitives a
 
 
 class (ToBoundingBox a) => Overlaps a where

@@ -36,7 +36,7 @@ printTree (LBox (Point offset) _ botConnect nodeContents childrenWithLines) = Co
 
                                                     
 printNodeContent :: Offset -> LayoutNodeContent -> Shape
-printNodeContent (xOffset, yOffset) (LayoutNodeText fillColor p text (_, height)) = Text text textFont height ((Point (xOffset, yOffset)) |+| p) AlignLeft fillColor textThickness (0,0,0,0) Nothing
+printNodeContent (xOffset, yOffset) (LayoutNodeText fillColor p text (_, height)) = Text text textFont height ((Point (xOffset, yOffset)) |+| p) AlignCenter fillColor textThickness (0,0,0,0) Nothing
 printNodeContent (xOffset, yOffset) (LayoutNode fillColor p r)                    = Circle ((Point (xOffset, yOffset)) |+| p) r fillColor lineThickness (0,0,0,0) Nothing
 
 

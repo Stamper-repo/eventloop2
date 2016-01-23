@@ -102,7 +102,7 @@ graphsPostProcessor sharedConst sharedIOT ioConst ioStateT (OutGraphs (Instructi
         endPLine    = Point (canvasGraphsWidth, 0)
         lineHeight  = 2
         lineShape   = BS.Line startPLine endPLine lineHeight (0,0,0,255) Nothing
-        textShape   = (\line p -> BS.Text line textFont textSize p BS.AlignLeft (0,0,0,255) 0 (0,0,0,0) Nothing)
+        textShape   = (\line p -> BS.Text line textFont textSize p BS.AlignCenter (0,0,0,255) 0 (0,0,0,0) Nothing)
         textMargin        = 2
         heights           = iterate ((+) (textSize + textMargin)) lineHeight
         isAndHeights      = zip is heights
@@ -153,7 +153,7 @@ graphToShapes graph
 nodeToShapes :: Node -> [BS.Shape]
 nodeToShapes (l, p, col)
     = [ BS.Circle (Point p) nodeRadius color 2 (0,0,0,255) Nothing
-      , BS.Text lStr textFont textSize (Point p) BS.AlignLeft (0,0,0,255) 3 (0,0,0,255) Nothing
+      , BS.Text lStr textFont textSize (Point p) BS.AlignCenter (0,0,0,255) 3 (0,0,0,255) Nothing
       ]
     where
         color = colorToRGBAColor col
@@ -168,7 +168,7 @@ edgeToShapes (_, p1, _) (_, p2, _) (_, _, col, w, thick) directed weighted
                                                 , BS.Line (Point arrowStart) (Point arrow2End) thickness color Nothing
                                                 ]
                      | directed == Undirected = []
-        weightShapes | weighted == Weighted   = [BS.Text wStr textFont textSize (Point textPos) BS.AlignLeft (0,0,0,255) 0 (0,0,0,0) Nothing]
+        weightShapes | weighted == Weighted   = [BS.Text wStr textFont textSize (Point textPos) BS.AlignCenter (0,0,0,255) 0 (0,0,0,0) Nothing]
                      | weighted == Unweighted = []
                     where
                         wStr = show w

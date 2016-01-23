@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass, FlexibleInstances #-}
 module Eventloop.Utility.Vectors where
 
 import GHC.Generics (Generic)
@@ -38,6 +38,12 @@ class ExtremaCoord a where
     yMin :: a -> Y
     yMax :: a -> Y
 
+instance ExtremaCoord [Point] where
+    xMin points = minimum $ map x points
+    xMax points = maximum $ map x points
+    yMin points = minimum $ map y points
+    yMax points = maximum $ map y points
+
 
 degreesToRadians :: Angle -> Radians
 degreesToRadians d = (pi / 180) * d
@@ -69,6 +75,32 @@ averagePoint points
             average = total |\ (toInteger (length points))
 
 
+-- | Returns the vector perpendicular on the given vector between the 2 points. Always has positive y and vector length 1; y is inverted in canvas
+downPerpendicular :: Point -> Point -> Point
+downPerpendicular p1@(Point (x1, y1)) p2@(Point (x2, y2))
+    | y2 > y1   = Point ((-1) * sign * (abs yv) / size, (abs xv) / size)
+    | otherwise = Point (       sign * (abs yv) / size, (abs xv) / size)
+    where
+        (xv, yv) = differenceBetweenPoints p1 p2
+        size     = lengthBetweenPoints p1 p2
+        sign     = case xv of
+                    0 -> (-1)
+                    _ -> xv / (abs xv)
+
+
+-- | Returns the vector perpendicular on the given vector between the 2 points. Always has negative y and vector length 1; y is inverted in canvas
+upPerpendicular :: Point -> Point -> Point
+upPerpendicular p1 p2 = negateVector $ downPerpendicular p1 p2
+
+
+followVector :: Float -> Point -> Point -> Point
+followVector distance followP startP
+    = (followP |* fraction) |+| startP
+    where
+        fraction = distance / size
+        size     = lengthBetweenPoints followP originPoint
+
+
 originPoint = Point (0,0)
 
 class Translate a where
@@ -85,6 +117,16 @@ class (Coord a) => Vector2D a where
 instance Vector2D PolarCoord where
     pc1 |+| pc2 = toPolarCoord $ (toPoint pc1) |+| (toPoint pc2)
     pc1 |-| pc2 = toPolarCoord $ (toPoint pc1) |-| (toPoint pc2)
+    (PolarCoord (l, a)) |\ scalar
+        = PolarCoord (fromRational (l' / scalar'), a)
+        where
+            l' = toRational l
+            scalar' = toRational scalar
+    (PolarCoord (l, a)) |* scalar
+        = PolarCoord (fromRational (l' * scalar'), a)
+        where
+            l' = toRational l
+            scalar' = toRational scalar
     negateVector pc1 = rotateLeftAround (Point (0,0)) 180 pc1
     
 instance Vector2D Point where
