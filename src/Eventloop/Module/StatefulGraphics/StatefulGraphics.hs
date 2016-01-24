@@ -16,8 +16,6 @@ import Eventloop.Types.Events
 import Eventloop.Types.System
 import Eventloop.Utility.Vectors
 
-import Debug.Trace
-
 
 setupStatefulGraphicsModuleConfiguration :: EventloopSetupModuleConfiguration
 setupStatefulGraphicsModuleConfiguration = ( EventloopSetupModuleConfiguration
@@ -97,9 +95,7 @@ calculateNewScene canvasId state outs
             where
                 (state_', performed_') = performStatefulGraphicsOut state_ statefulOut
         (toRedraw, toRemove) = calculateRedraws state' performed
-        toRedrawIds = statefulIds toRedraw
-        toRemoveIds = trace ("To Redraw: " ++ (show toRedrawIds)) statefulIds toRemove
-        basicShapes = trace ("To Remove: " ++ (show toRemoveIds)) (map getShape toRedraw)
+        basicShapes = map getShape toRedraw
         removes = map calculateRemove toRemove
 
 {-

@@ -9,8 +9,6 @@ import Eventloop.Module.BasicShapes.MeasureTextHack
 import qualified Eventloop.Module.Websocket.Canvas.Types as CT
 
 
-import Debug.Trace
-
 {-
 The center of a boundingbox is not the center of an element
     Rectangle - Intersection of two halves of adjoining sides
