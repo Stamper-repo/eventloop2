@@ -80,7 +80,7 @@ data Shape = CompositeShape { shapes :: [Shape]
                   , strokeLineThickness :: StrokeLineThickness
                   , strokeColor :: StrokeColor
                   , rotationM :: Maybe Rotation
-                  } -- ^Translation is horizontally the center and vertically the top of the text, does not have a boundingbox due to technical limitations
+                  }
            | Line { point1 :: Point
                   , point2 :: Point
                   , strokeLineThickness :: StrokeLineThickness
