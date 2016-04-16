@@ -124,8 +124,8 @@ instance Translate Shape where
         = t {position = trans |+| p}
     translate pTrans l@(Line {point1=p1, point2=p2})
         = l {point1 = (p1 |+| pTrans), point2 = (p2 |+| pTrans)}
-    translate pTrans ml@(MultiLine {point1=p1, point2=p2, otherPoints=ops})
-        = ml {point1 = (p1 |+| pTrans), point2 = (p2 |+| pTrans),  otherPoints = (map ((|+|) pTrans) ops)}
+    translate pTrans ml@(MultiLine {points=points})
+        = ml {points = (map ((|+|) pTrans) points)}
 
 instance Translate GeometricPrimitive where
     translate p (Points points) = Points (map (|+| p) points)
@@ -156,7 +156,7 @@ instance ToPrimitives Shape where
     toPrimitives (Circle {position=p, radius=r, strokeLineThickness=thick, rotationM=Nothing})
         = [CircleArea p (r + 0.5 * thick)]
     toPrimitives (Polygon {numberOfPoints=a, position=p, radius=r, strokeLineThickness=thick, rotationM=Nothing})
-        | a > 2  = toPrimitives (MultiLine p1 p2 ops thick undefined Nothing)
+        | a > 2  = toPrimitives (MultiLine points thick undefined Nothing)
         | a == 2 = toPrimitives (Line p1 p2 thick undefined Nothing)
         | a == 1 = [Points (take 1 points)]
         | a == 0 = [Points []]
@@ -199,12 +199,11 @@ instance ToPrimitives Shape where
         where
             upPerpVector = upPerpendicular p1 p2
             downPerpVector = negateVector upPerpVector
-    toPrimitives (MultiLine {point1=p1, point2=p2, otherPoints=ops, strokeLineThickness=thick, rotationM=Nothing})
+    toPrimitives (MultiLine {points=points, strokeLineThickness=thick, rotationM=Nothing})
         = concat $ map toPrimitives lines
         where
-            allPoints = p1:p2:ops
-            tailPoints = p2:ops
-            linePoints = zip allPoints tailPoints
+            tailPoints = tail points
+            linePoints = zip points tailPoints
             lines = map (\(p, p') -> Line p p' thick undefined Nothing) linePoints
     toPrimitives shape
         = map (rotateLeftAround rotatePoint angle) (toPrimitives shapePreRotate)
@@ -414,11 +413,10 @@ instance ToScreenPathPart Shape where
             p1' = roundPoint p1
             p2' = roundPoint p2
                                         
-    toScreenPathParts (MultiLine {point1=p1, point2=p2, otherPoints=otherPoints_})
+    toScreenPathParts (MultiLine {points=points})
         = (lines ++ [CT.MoveTo p1'], p1')
         where
-            allPoints = p1:p2:otherPoints_
-            (p1':otherPoints') = map roundPoint allPoints
+            (p1':otherPoints') = map roundPoint points
             lines = [CT.LineTo p' | p' <- otherPoints']
 
 

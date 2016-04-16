@@ -143,7 +143,7 @@ data RenderStyle = CanvasColor ScreenColor {- ^Opcode: 0701-}
 {- |Opcode: 0800-}                     
 data CanvasImage = CanvasElement CanvasId ScreenPoint ScreenDimensions {- ^Opcode: 0801-}
                  | ImageData ScreenDimensions [ScreenPixel] {- ^Opcode: 0802 
-                                                            [ScreenPixel] should be as long as width * height * 4
+                                                            [ScreenPixel] should be as long as width * height * 4. Each quad is red,green,blue,alpha
                                                             -}
                  deriving (Eq, Show, Generic, NFData)
 {- |Opcode: 0900-}                 
