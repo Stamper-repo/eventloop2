@@ -76,7 +76,7 @@ instance RotateLeftAround BoundingBox where
 
 
 
-allPolygonPoints :: AmountOfPoints -> Point -> Radius -> [Point]
+allPolygonPoints :: NumberOfPoints -> Point -> Radius -> [Point]
 allPolygonPoints n centralPoint r | n < 1 = error "A polygon with 0 or more sides doesn't exist!"
                                   | otherwise = [centralPoint |+| (toPoint (PolarCoord (r, angle)))  |angle <- anglesRads]
                                 where
@@ -110,18 +110,18 @@ roundColor (r, b, g, a) = (round r, round b, round g, a)
 
 
 instance Translate Shape where
-    translate p c@(CompositeShape {translationM=Nothing})
-        = c {translationM = (Just p)}
-    translate p c@(CompositeShape {translationM=(Just p1)})
-        = c {translationM = (Just $ p1 |+| p)}
-    translate p r@(Rectangle {translation=trans})
-        = r {translation = trans |+| p}
-    translate p c@(Circle {translation=trans})
-        = c {translation = trans |+| p}
-    translate p po@(Polygon {translation=trans})
-        = po {translation = trans |+| p}
-    translate p t@(Text {translation=trans})
-        = t {translation = trans |+| p}
+    translate p c@(CompositeShape {positionM=Nothing})
+        = c {positionM = (Just p)}
+    translate p c@(CompositeShape {positionM=(Just p1)})
+        = c {positionM = (Just $ p1 |+| p)}
+    translate p r@(Rectangle {position=trans})
+        = r {position = trans |+| p}
+    translate p c@(Circle {position=trans})
+        = c {position = trans |+| p}
+    translate p po@(Polygon {position=trans})
+        = po {position = trans |+| p}
+    translate p t@(Text {position=trans})
+        = t {position = trans |+| p}
     translate pTrans l@(Line {point1=p1, point2=p2})
         = l {point1 = (p1 |+| pTrans), point2 = (p2 |+| pTrans)}
     translate pTrans ml@(MultiLine {point1=p1, point2=p2, otherPoints=ops})
@@ -139,12 +139,12 @@ instance ToPrimitives BoundingBox where
     toPrimitives (BoundingBox ll ul ur lr) = [Points [ll, ul, ur, lr]]
 
 instance ToPrimitives Shape where
-    toPrimitives (CompositeShape shapes translationM Nothing)
-        | isJust translationM = map (translate (fromJust translationM)) primitives
+    toPrimitives (CompositeShape shapes positionM Nothing)
+        | isJust positionM = map (translate (fromJust positionM)) primitives
         | otherwise           = primitives
         where
             primitives = concat $ map toPrimitives shapes
-    toPrimitives (Rectangle {translation=(Point (x, y)), dimensions=(w, h), strokeLineThickness=thick, rotationM=Nothing})
+    toPrimitives (Rectangle {position=(Point (x, y)), dimensions=(w, h), strokeLineThickness=thick, rotationM=Nothing})
         = [ Points [ Point (x - hthick, y - hthick)
                    , Point (x - hthick, y + h + hthick)
                    , Point (x + w + hthick, y + h + hthick)
@@ -153,9 +153,9 @@ instance ToPrimitives Shape where
           ]
         where
             hthick = 0.5 * thick
-    toPrimitives (Circle {translation=p, radius=r, strokeLineThickness=thick, rotationM=Nothing})
+    toPrimitives (Circle {position=p, radius=r, strokeLineThickness=thick, rotationM=Nothing})
         = [CircleArea p (r + 0.5 * thick)]
-    toPrimitives (Polygon {amountOfPoints=a, translation=p, radius=r, strokeLineThickness=thick, rotationM=Nothing})
+    toPrimitives (Polygon {numberOfPoints=a, position=p, radius=r, strokeLineThickness=thick, rotationM=Nothing})
         | a > 2  = toPrimitives (MultiLine p1 p2 ops thick undefined Nothing)
         | a == 2 = toPrimitives (Line p1 p2 thick undefined Nothing)
         | a == 1 = [Points (take 1 points)]
@@ -163,7 +163,7 @@ instance ToPrimitives Shape where
         where
              points = allPolygonPoints a p r
              (p1:p2:ops) = points
-    toPrimitives text@(Text {translation=(Point (x,y)), alignment=align, rotationM=Nothing})
+    toPrimitives text@(Text {position=(Point (x,y)), alignment=align, rotationM=Nothing})
         = [ Points $ case align of
             CT.AlignLeft   -> [ Point (x, y)
                               , Point (x, y + height)
@@ -227,19 +227,19 @@ instance ToCenter BoundingBox where
             maxY = yMax bbox
 
 instance ToCenter Shape where
-    toCenter c@(CompositeShape {translationM=(Just p), rotationM=Nothing})
+    toCenter c@(CompositeShape {positionM=(Just p), rotationM=Nothing})
         = p |+| center
         where
-            center = toCenter c{translationM=Nothing}
-    toCenter c@(CompositeShape {shapes=shapes, translationM=Nothing, rotationM=Nothing})
+            center = toCenter c{positionM=Nothing}
+    toCenter c@(CompositeShape {shapes=shapes, positionM=Nothing, rotationM=Nothing})
         = averagePoint centers
         where
             centers = map toCenter shapes
-    toCenter r@(Rectangle {dimensions=(width, height), translation=p, rotationM=Nothing})
+    toCenter r@(Rectangle {dimensions=(width, height), position=p, rotationM=Nothing})
         = p |+| (Point (0.5 * width, 0.5 * height))
-    toCenter c@(Circle {translation=p, rotationM=Nothing})
+    toCenter c@(Circle {position=p, rotationM=Nothing})
         = p
-    toCenter po@(Polygon {translation=p, rotationM=Nothing})
+    toCenter po@(Polygon {position=p, rotationM=Nothing})
         = p
     toCenter t@(Text {rotationM=Nothing})
         = (toCenter.toBoundingBox) t
@@ -337,15 +337,15 @@ instance ToCanvasOperations Shape where
 
     toCanvasOperations (CompositeShape shapes (Just translate) Nothing)
         = [ CT.DoTransform CT.Save
-          , CT.DoTransform (CT.Translate screenTranslationPoint)
+          , CT.DoTransform (CT.Translate screenPositionPoint)
           ] ++ drawOperations ++
           [ CT.DoTransform CT.Restore
           ]
         where
-            screenTranslationPoint = roundPoint translate
+            screenPositionPoint = roundPoint translate
             drawOperations = toCanvasOperations (CompositeShape shapes Nothing Nothing)
 
-    toCanvasOperations text@(Text { translation=p
+    toCanvasOperations text@(Text { position=p
                                   , fillColor=fill
                                   , strokeLineThickness=thick
                                   , strokeColor=stroke
@@ -391,18 +391,18 @@ class ToScreenPathPart a where
     toScreenPathParts :: a -> ([CT.ScreenPathPart], CT.ScreenStartingPoint)
     
 instance ToScreenPathPart Shape where
-    toScreenPathParts (Rectangle {translation=p, dimensions=(w, h)})
+    toScreenPathParts (Rectangle {position=p, dimensions=(w, h)})
         = ([CT.Rectangle p' (w', h')], p')
         where
             p' = roundPoint p
             w' = round w
             h' = round h
-    toScreenPathParts (Circle {translation=p, radius=r})
+    toScreenPathParts (Circle {position=p, radius=r})
         = ([CT.Arc (p', r') 0 360], p')
         where
             p' = roundPoint p
             r' = round r
-    toScreenPathParts (Polygon {translation=p, amountOfPoints=n, radius=r})
+    toScreenPathParts (Polygon {position=p, numberOfPoints=n, radius=r})
         = (lines, screenPoint)
         where
             polygonPoints = allPolygonPoints n p r

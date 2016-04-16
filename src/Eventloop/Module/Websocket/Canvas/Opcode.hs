@@ -47,7 +47,7 @@ instance ToOpcode RenderStyle where
 instance ToOpcode CanvasImage where
     toOpcode (CanvasElement _ _ _) = 801
     toOpcode (ImageData _ _)       = 802
-    
+
 instance ToOpcode PatternRepetition where
     toOpcode (Repeat)   = 901
     toOpcode (RepeatX)  = 902

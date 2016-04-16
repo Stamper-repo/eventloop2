@@ -72,7 +72,7 @@ averagePoint points
     = average
         where
             total = foldl (|+|) originPoint points
-            average = total |\ (toInteger (length points))
+            average = total |/ (toInteger (length points))
 
 
 -- | Returns the vector perpendicular on the given vector between the 2 points. Always has positive y and vector length 1; y is inverted in canvas
@@ -110,14 +110,14 @@ class Translate a where
 class (Coord a) => Vector2D a where
     (|+|) :: a -> a -> a
     (|-|) :: a -> a -> a
-    (|\)  :: (Real b) => a -> b -> a
+    (|/)  :: (Real b) => a -> b -> a
     (|*)  :: (Real b) => a -> b -> a
     negateVector :: a -> a
 
 instance Vector2D PolarCoord where
     pc1 |+| pc2 = toPolarCoord $ (toPoint pc1) |+| (toPoint pc2)
     pc1 |-| pc2 = toPolarCoord $ (toPoint pc1) |-| (toPoint pc2)
-    (PolarCoord (l, a)) |\ scalar
+    (PolarCoord (l, a)) |/ scalar
         = PolarCoord (fromRational (l' / scalar'), a)
         where
             l' = toRational l
@@ -136,7 +136,7 @@ instance Vector2D Point where
     (Point (x1, y1)) |-| (Point (x2, y2))
         = Point (x1 - x2, y1 - y2)
 
-    (Point (x1, y1)) |\  scalar
+    (Point (x1, y1)) |/  scalar
         = Point (fromRational x', fromRational y')
         where
             x' = toRational x1 / toRational scalar

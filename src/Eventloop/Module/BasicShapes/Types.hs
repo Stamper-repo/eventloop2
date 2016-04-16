@@ -13,7 +13,7 @@ import Control.DeepSeq
 
 
 type GraphicalNumeric = Float
-type Translation = Point
+type Position = Point
 
 type Width = GraphicalNumeric
 type Height = GraphicalNumeric
@@ -36,7 +36,7 @@ type UpperRight = Point
 type LowerLeft = Point
 type LowerRight = Point
 
-type AmountOfPoints = Int
+type NumberOfPoints = Int
 
 type FontFamily = [Char]
 type FontSize = GraphicalNumeric
@@ -46,35 +46,35 @@ data BasicShapesOut = DrawShapes CanvasId [Shape]
                     deriving (Show, Eq, Generic, NFData)
 
 data Shape = CompositeShape { shapes :: [Shape]
-                            , translationM :: Maybe Translation
+                            , positionM :: Maybe Position
                             , rotationM :: Maybe Rotation
-                            } -- ^Should contain atleast 1 shape. Rotation before Translation
-           | Rectangle { translation :: Translation
+                            } -- ^Should contain atleast 1 shape. Rotation before Position
+           | Rectangle { position :: Position
                        , dimensions :: Dimensions
                        , fillColor :: FillColor
                        , strokeLineThickness :: StrokeLineThickness
                        , strokeColor :: StrokeColor
                        , rotationM :: Maybe Rotation
-                       } -- ^| Translation is upperleftcorner. Translation is the corner closes to origin. Visually in canvas, this is top left. In a Cartesian coördinate system, this is bottom left.
-           | Circle { translation :: Translation
+                       } -- ^| Position is upperleftcorner. Position is the corner closes to origin. Visually in canvas, this is top left. In a Cartesian coördinate system, this is bottom left.
+           | Circle { position :: Position
                     , radius :: Radius
                     , fillColor :: FillColor
                     , strokeLineThickness :: StrokeLineThickness
                     , strokeColor :: StrokeColor
                     , rotationM :: Maybe Rotation
-                    } -- ^| Translation is center
-           | Polygon { translation :: Translation
-                     , amountOfPoints :: AmountOfPoints
+                    } -- ^| Position is center
+           | Polygon { position :: Position
+                     , numberOfPoints :: NumberOfPoints
                      , radius :: Radius
                      , fillColor :: FillColor
                      , strokeLineThickness :: StrokeLineThickness
                      , strokeColor :: StrokeColor
                      , rotationM :: Maybe Rotation
-                     } -- ^The first point of the polygon, always starts in the direction from the x-axis.(Towards x-infinity). Translation is the the centre of the polygon
+                     } -- ^The first point of the polygon, always starts in the direction from the x-axis.(Towards x-infinity). Position is the the centre of the polygon
            | Text { text :: [Char]
                   , fontFamily :: FontFamily
                   , fontSize :: FontSize
-                  , translation :: Translation
+                  , position :: Position
                   , alignment :: Alignment
                   , fillColor :: FillColor
                   , strokeLineThickness :: StrokeLineThickness
