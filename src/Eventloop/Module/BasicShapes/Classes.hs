@@ -23,7 +23,8 @@ Split into points to calc boundingbox
     RegularPolygon   - Split into the regular polygon points
     Text      - Split into 4 corners of bbox
     Line      - Split into the two points
-    MultiLine - Split into the different points
+    MultiLine - Split into the different points with stroke
+    Polygon   - Split into the different points with stroke
 -}
 
 {-
@@ -126,6 +127,8 @@ instance Translate Shape where
         = l {point1 = (p1 |+| pTrans), point2 = (p2 |+| pTrans)}
     translate pTrans ml@(MultiLine {points=points})
         = ml {points = (map ((|+|) pTrans) points)}
+    translate pTrans a@(Polygon {points=points})
+        = a {points = (map ((|+|) pTrans) points)}
 
 instance Translate GeometricPrimitive where
     translate p (Points points) = Points (map (|+| p) points)
@@ -205,6 +208,10 @@ instance ToPrimitives Shape where
             tailPoints = drop 1 points
             linePoints = zip points tailPoints
             lines = map (\(p, p') -> Line p p' thick undefined Nothing) linePoints
+    toPrimitives pol@(Polygon {points=points, strokeLineThickness=thick, strokeColor=strokeColor, rotationM=Nothing})
+        = toPrimitives (MultiLine allPoints thick strokeColor Nothing)
+        where
+            allPoints = allPolygonPoints pol
     toPrimitives shape
         = map (rotateLeftAround rotatePoint angle) (toPrimitives shapePreRotate)
         where
@@ -246,6 +253,8 @@ instance ToCenter Shape where
         = (toCenter.toBoundingBox) l
     toCenter ml@(MultiLine {})
         = (toCenter.toBoundingBox) ml
+    toCenter a@(Polygon {})
+        = (toCenter.toBoundingBox) a
     toCenter shape
         = rotateLeftAround rotationPoint angle center
         where
@@ -368,7 +377,7 @@ instance ToCanvasOperations Shape where
                                    ++ (toCanvasOperations movedShape) ++
                                      [ CT.DoTransform CT.Restore
                                      ]
-        -- Can only be Rectangle, Circle, RegularPolygon, Line or MultiLine
+        -- Can only be Rectangle, Circle, RegularPolygon, Line, MultiLine or Polygon
         | isJust screenPathPartsM  = [CT.DrawPath startingPoint screenPathParts pathStroke canvasPathFill]
         | otherwise                = []
         where
@@ -416,11 +425,18 @@ instance ToScreenPathPart Shape where
             p2' = roundPoint p2
                                         
     toScreenPathParts (MultiLine {points=points})
-        | (length points') > 0 = Just (lines ++ [CT.MoveTo p1'], p1')
-        | otherwise            = Nothing
+        | (length points) > 0 = Just (lines ++ [CT.MoveTo p1'], p1')
+        | otherwise           = Nothing
         where
-            points' = map roundPoint points
-            (p1':otherPoints') = points'
+            (p1':otherPoints') = map roundPoint points
+            lines = [CT.LineTo p' | p' <- otherPoints']
+
+    toScreenPathParts pol@(Polygon {points=points})
+        | (length points) > 0 = Just (lines ++ [CT.MoveTo p1'], p1')
+        | otherwise           = Nothing
+        where
+            allPoints = allPolygonPoints pol
+            (p1':otherPoints') = map roundPoint allPoints
             lines = [CT.LineTo p' | p' <- otherPoints']
 
 
@@ -440,6 +456,17 @@ hasCanvasPathFill (Circle {})
     = True
 hasCanvasPathFill (RegularPolygon {})
     = True
+hasCanvasPathFill (Polygon {})
+    = True
 hasCanvasPathFill _
     = False
-    
+
+
+allPolygonPoints :: Shape -> [Point]
+allPolygonPoints (Polygon {points=points, strokeLineThickness=thick})
+    | (length points) >= 2 = points ++ [closeP]
+    | otherwise            = points
+    where
+        firstP = head points
+        lastP  = last points
+        closeP = followVector (0.5 * thick) (firstP |-| lastP) firstP

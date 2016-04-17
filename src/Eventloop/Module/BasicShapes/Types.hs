@@ -92,6 +92,12 @@ data Shape = CompositeShape { shapes :: [Shape]
                        , strokeColor :: StrokeColor
                        , rotationM :: Maybe Rotation
                        }
+           | Polygon { points :: [Point] -- ^| Closes shape automatically with fill. Do not forget that the fill encloses the entire path. This means that half of the stroke is overwritten by the fill.
+                     , fillColor :: FillColor
+                     , strokeLineThickness :: StrokeLineThickness
+                     , strokeColor :: StrokeColor
+                     , rotationM :: Maybe Rotation
+                     }
            deriving (Show, Eq, Generic, NFData)
            
            
