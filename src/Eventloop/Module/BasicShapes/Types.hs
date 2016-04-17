@@ -63,14 +63,14 @@ data Shape = CompositeShape { shapes :: [Shape]
                     , strokeColor :: StrokeColor
                     , rotationM :: Maybe Rotation
                     } -- ^| Position is center
-           | Polygon { position :: Position
+           | RegularPolygon { position :: Position
                      , numberOfPoints :: NumberOfPoints
                      , radius :: Radius
                      , fillColor :: FillColor
                      , strokeLineThickness :: StrokeLineThickness
                      , strokeColor :: StrokeColor
                      , rotationM :: Maybe Rotation
-                     } -- ^The first point of the polygon, always starts in the direction from the x-axis.(Towards x-infinity). Position is the the centre of the polygon
+                     } -- ^The first point of the regular polygon, always starts in the direction from the x-axis.(Towards x-infinity). Position is the the centre of the regular polygon
            | Text { text :: [Char]
                   , fontFamily :: FontFamily
                   , fontSize :: FontSize

@@ -13,14 +13,14 @@ import qualified Eventloop.Module.Websocket.Canvas.Types as CT
 The center of a boundingbox is not the center of an element
     Rectangle - Intersection of two halves of adjoining sides
     Circle    - Centre point
-    Polygon   - Centre point
+    RegularPolygon   - Centre point
     Text      - See boundingbox to rectangle
     Line      - Halfway down the line
     MultiLine - See boundingbox
 Split into points to calc boundingbox
     Rectangle - Split into 4 corners
     Circle    - Top, left, right and bottom points on the circle
-    Polygon   - Split into the polygon points
+    RegularPolygon   - Split into the regular polygon points
     Text      - Split into 4 corners of bbox
     Line      - Split into the two points
     MultiLine - Split into the different points
@@ -76,8 +76,8 @@ instance RotateLeftAround BoundingBox where
 
 
 
-allPolygonPoints :: NumberOfPoints -> Point -> Radius -> [Point]
-allPolygonPoints n centralPoint r | n < 1 = error "A polygon with 0 or more sides doesn't exist!"
+allRegularPolygonPoints :: NumberOfPoints -> Point -> Radius -> [Point]
+allRegularPolygonPoints n centralPoint r | n < 1 = error "A regular polygon with 0 or more sides doesn't exist!"
                                   | otherwise = [centralPoint |+| (toPoint (PolarCoord (r, angle)))  |angle <- anglesRads]
                                 where
                                     anglePart = 360 / (fromIntegral n)
@@ -118,7 +118,7 @@ instance Translate Shape where
         = r {position = trans |+| p}
     translate p c@(Circle {position=trans})
         = c {position = trans |+| p}
-    translate p po@(Polygon {position=trans})
+    translate p po@(RegularPolygon {position=trans})
         = po {position = trans |+| p}
     translate p t@(Text {position=trans})
         = t {position = trans |+| p}
@@ -155,13 +155,13 @@ instance ToPrimitives Shape where
             hthick = 0.5 * thick
     toPrimitives (Circle {position=p, radius=r, strokeLineThickness=thick, rotationM=Nothing})
         = [CircleArea p (r + 0.5 * thick)]
-    toPrimitives (Polygon {numberOfPoints=a, position=p, radius=r, strokeLineThickness=thick, rotationM=Nothing})
+    toPrimitives (RegularPolygon {numberOfPoints=a, position=p, radius=r, strokeLineThickness=thick, rotationM=Nothing})
         | a > 2  = toPrimitives (MultiLine points thick undefined Nothing)
         | a == 2 = toPrimitives (Line p1 p2 thick undefined Nothing)
         | a == 1 = [Points (take 1 points)]
         | a == 0 = [Points []]
         where
-             points = allPolygonPoints a p r
+             points = allRegularPolygonPoints a p r
              (p1:p2:ops) = points
     toPrimitives text@(Text {position=(Point (x,y)), alignment=align, rotationM=Nothing})
         = [ Points $ case align of
@@ -238,7 +238,7 @@ instance ToCenter Shape where
         = p |+| (Point (0.5 * width, 0.5 * height))
     toCenter c@(Circle {position=p, rotationM=Nothing})
         = p
-    toCenter po@(Polygon {position=p, rotationM=Nothing})
+    toCenter po@(RegularPolygon {position=p, rotationM=Nothing})
         = p
     toCenter t@(Text {rotationM=Nothing})
         = (toCenter.toBoundingBox) t
@@ -368,7 +368,7 @@ instance ToCanvasOperations Shape where
                                    ++ (toCanvasOperations movedShape) ++
                                      [ CT.DoTransform CT.Restore
                                      ]
-        -- Can only be Rectangle, Circle, Polygon, Line or MultiLine
+        -- Can only be Rectangle, Circle, RegularPolygon, Line or MultiLine
         | otherwise                = [CT.DrawPath startingPoint screenPathParts pathStroke canvasPathFill]
         where
             (Just rotation) = rotationM shape
@@ -401,10 +401,10 @@ instance ToScreenPathPart Shape where
         where
             p' = roundPoint p
             r' = round r
-    toScreenPathParts (Polygon {position=p, numberOfPoints=n, radius=r})
+    toScreenPathParts (RegularPolygon {position=p, numberOfPoints=n, radius=r})
         = (lines, screenPoint)
         where
-            polygonPoints = allPolygonPoints n p r
+            polygonPoints = allRegularPolygonPoints n p r
             (screenPoint:ps) = map roundPoint polygonPoints
             lines = [CT.LineTo screenPoint' | screenPoint' <- (ps ++ [screenPoint])]
     toScreenPathParts (Line {point1=p1, point2=p2})
@@ -434,7 +434,7 @@ hasCanvasPathFill (Rectangle {})
     = True
 hasCanvasPathFill (Circle {})
     = True
-hasCanvasPathFill (Polygon {})
+hasCanvasPathFill (RegularPolygon {})
     = True
 hasCanvasPathFill _
     = False
