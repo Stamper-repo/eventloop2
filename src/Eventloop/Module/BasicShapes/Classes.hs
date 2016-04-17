@@ -211,7 +211,7 @@ instance ToPrimitives Shape where
     toPrimitives pol@(Polygon {points=points, strokeLineThickness=thick, strokeColor=strokeColor, rotationM=Nothing})
         = toPrimitives (MultiLine allPoints thick strokeColor Nothing)
         where
-            allPoints = allPolygonPoints pol
+            allPoints = allScreenPolygonPoints pol
     toPrimitives shape
         = map (rotateLeftAround rotatePoint angle) (toPrimitives shapePreRotate)
         where
@@ -435,7 +435,7 @@ instance ToScreenPathPart Shape where
         | (length points) > 0 = Just (lines ++ [CT.MoveTo p1'], p1')
         | otherwise           = Nothing
         where
-            allPoints = allPolygonPoints pol
+            allPoints = allScreenPolygonPoints pol
             (p1':otherPoints') = map roundPoint allPoints
             lines = [CT.LineTo p' | p' <- otherPoints']
 
@@ -462,11 +462,14 @@ hasCanvasPathFill _
     = False
 
 
-allPolygonPoints :: Shape -> [Point]
-allPolygonPoints (Polygon {points=points, strokeLineThickness=thick})
+allScreenPolygonPoints :: Shape -> [Point]
+allScreenPolygonPoints (Polygon {points=points, strokeLineThickness=thick})
     | (length points) >= 2 = points ++ [closeP]
     | otherwise            = points
     where
         firstP = head points
         lastP  = last points
         closeP = followVector (0.5 * thick) (firstP |-| lastP) firstP
+
+
+
