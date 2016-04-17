@@ -87,7 +87,7 @@ data Shape = CompositeShape { shapes :: [Shape]
                   , strokeColor :: StrokeColor
                   , rotationM :: Maybe Rotation
                   }
-           | MultiLine { points :: [Point] -- ^| Should always contains two points
+           | MultiLine { points :: [Point] -- ^| Can contain any number of points
                        , strokeLineThickness :: StrokeLineThickness
                        , strokeColor :: StrokeColor
                        , rotationM :: Maybe Rotation

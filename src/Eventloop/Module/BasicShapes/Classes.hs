@@ -202,7 +202,7 @@ instance ToPrimitives Shape where
     toPrimitives (MultiLine {points=points, strokeLineThickness=thick, rotationM=Nothing})
         = concat $ map toPrimitives lines
         where
-            tailPoints = tail points
+            tailPoints = drop 1 points
             linePoints = zip points tailPoints
             lines = map (\(p, p') -> Line p p' thick undefined Nothing) linePoints
     toPrimitives shape
@@ -369,7 +369,8 @@ instance ToCanvasOperations Shape where
                                      [ CT.DoTransform CT.Restore
                                      ]
         -- Can only be Rectangle, Circle, RegularPolygon, Line or MultiLine
-        | otherwise                = [CT.DrawPath startingPoint screenPathParts pathStroke canvasPathFill]
+        | isJust screenPathPartsM  = [CT.DrawPath startingPoint screenPathParts pathStroke canvasPathFill]
+        | otherwise                = []
         where
             (Just rotation) = rotationM shape
             shapePreRotate = shape{rotationM = Nothing}
@@ -380,43 +381,46 @@ instance ToCanvasOperations Shape where
             movedShape = translate (negateVector rotationPoint) shapePreRotate
 
             canvasPathFill = toCanvasPathFill shape
-            (screenPathParts, startingPoint) = toScreenPathParts shape
+            screenPathPartsM = toScreenPathParts shape
+            Just (screenPathParts, startingPoint) = screenPathPartsM
             screenStrokeColor = roundColor $ strokeColor shape
             thick = strokeLineThickness shape
             pathStroke = CT.PathStroke (round thick) (CT.CanvasColor screenStrokeColor)
 
           
 class ToScreenPathPart a where
-    toScreenPathParts :: a -> ([CT.ScreenPathPart], CT.ScreenStartingPoint)
+    toScreenPathParts :: a -> Maybe ([CT.ScreenPathPart], CT.ScreenStartingPoint)
     
 instance ToScreenPathPart Shape where
     toScreenPathParts (Rectangle {position=p, dimensions=(w, h)})
-        = ([CT.Rectangle p' (w', h')], p')
+        = Just ([CT.Rectangle p' (w', h')], p')
         where
             p' = roundPoint p
             w' = round w
             h' = round h
     toScreenPathParts (Circle {position=p, radius=r})
-        = ([CT.Arc (p', r') 0 360], p')
+        = Just ([CT.Arc (p', r') 0 360], p')
         where
             p' = roundPoint p
             r' = round r
     toScreenPathParts (RegularPolygon {position=p, numberOfPoints=n, radius=r})
-        = (lines, screenPoint)
+        = Just (lines, screenPoint)
         where
             polygonPoints = allRegularPolygonPoints n p r
             (screenPoint:ps) = map roundPoint polygonPoints
             lines = [CT.LineTo screenPoint' | screenPoint' <- (ps ++ [screenPoint])]
     toScreenPathParts (Line {point1=p1, point2=p2})
-        = ([CT.LineTo p2'], p1')
+        = Just ([CT.LineTo p2'], p1')
         where
             p1' = roundPoint p1
             p2' = roundPoint p2
                                         
     toScreenPathParts (MultiLine {points=points})
-        = (lines ++ [CT.MoveTo p1'], p1')
+        | (length points') > 0 = Just (lines ++ [CT.MoveTo p1'], p1')
+        | otherwise            = Nothing
         where
-            (p1':otherPoints') = map roundPoint points
+            points' = map roundPoint points
+            (p1':otherPoints') = points'
             lines = [CT.LineTo p' | p' <- otherPoints']
 
 
