@@ -62,11 +62,11 @@ showGeneralTreeList' left top maxBottom i (x:xs) | right <= 1024 || width > 1024
 
        
 showGeneralTree :: LeftOffset -> TopOffset -> Int -> GeneralTree -> (Shape, RightOffset, BottomOffset)
-showGeneralTree left top i tree = (CompositeShape [treeIndexShape, treeShape] Nothing Nothing, right, bottom)
+showGeneralTree left top i tree =  (CompositeShape [treeIndexShape, treeShape] Nothing Nothing, right, bottom)
                                 where
-                                    (ltree, right, bottom) = layoutGeneralTree left top tree
+                                    (ltree, right, bottom) = layoutGeneralTree left' top tree
                                     treeShape = printTree ltree
-                                    treeIndexShape = treeIndex i (left, top)
+                                    (treeIndexShape, left') = treeIndex i (left, top)
 
 instance GeneralizeTree RBTree where
     generalizeTree (RBNode col _ []) = GeneralTreeBox content []

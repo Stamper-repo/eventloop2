@@ -130,9 +130,11 @@ textSize str = (textWidth, textHeight)
                 textWidth = charWidth * (fromIntegral (length str))
 
 
-treeIndex :: Int -> Offset -> Shape
-treeIndex i (x, y) = Text iStr "Courier" 20 p AlignLeft (255,75,75, 255) 1 (0,0,0,0) Nothing
+treeIndex :: Int -> Offset -> (Shape, LeftOffset)
+treeIndex i (x, y) = (text, x + wText)
                 where
                     iStr = show i
                     (wText, hText) = textSize iStr
-                    p = Point (x + 0.5 * wText, y)
+                    p = Point (x, y)
+                    text = Text iStr "Courier" 20 p AlignLeft (255,75,75, 255) 1 (0,0,0,0) Nothing
+
