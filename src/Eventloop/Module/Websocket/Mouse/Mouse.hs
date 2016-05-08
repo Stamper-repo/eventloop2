@@ -89,7 +89,7 @@ instance FromJSON Point where
 mouseInitializer :: Initializer
 mouseInitializer sharedConst sharedIO
     = do
-        (clientSocket, clientConn, serverSock) <- setupWebsocketConnection ipAddress  mousePort
+        (clientSocket, clientConn, serverSock) <- setupWebsocketConnection iNADDR_ANY  mousePort
         safePrintLn (safePrintToken sharedConst) "Mouse connection succesfull"
         return (sharedConst, sharedIO, MouseConstants clientSocket clientConn serverSock, NoState)
 

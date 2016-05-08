@@ -1,6 +1,7 @@
 module Eventloop.Utility.Websockets
     ( module Eventloop.Utility.Websockets
     , Connection
+    , S.iNADDR_ANY
     ) where
 
 import qualified Network.Socket as S
@@ -29,12 +30,11 @@ type UnbufferedReaderThread = ReaderThread
 instance Show Connection where
     show _ = "Connection"
                                     
-createBindListenServerSocket :: Host -> Port -> IO ServerSocket
+createBindListenServerSocket :: S.HostAddress -> Port -> IO ServerSocket
 createBindListenServerSocket host port = do
-                                        host' <- S.inet_addr host
                                         socket <- S.socket S.AF_INET S.Stream S.defaultProtocol
                                         S.setSocketOption socket S.ReuseAddr 1
-                                        S.bindSocket socket (S.SockAddrInet (fromIntegral port) host')
+                                        S.bindSocket socket (S.SockAddrInet (fromIntegral port) host)
                                         S.listen socket 5
                                         return socket
 
@@ -47,12 +47,14 @@ acceptFirstConnection serverSocket = do
                                         return (connection, clientSocket)
 
                                         
-setupWebsocketConnection :: Host -> Port -> IO (ClientSocket, Connection, ServerSocket)
+setupWebsocketConnection :: S.HostAddress -> Port -> IO (ClientSocket, Connection, ServerSocket)
 setupWebsocketConnection host port = S.withSocketsDo $ do
                                                         serverSocket <- createBindListenServerSocket host port
                                                         (clientConnection, clientSocket) <- acceptFirstConnection serverSocket
                                                         return (clientSocket, clientConnection, serverSocket)
                                         
+
+
 
 handleCloseRequestException :: ClientSocket -> SafePrintToken -> ConnectionException -> IO (Maybe Message)
 handleCloseRequestException clientSocket safePrintToken (CloseRequest i reason)

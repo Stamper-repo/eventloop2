@@ -45,7 +45,7 @@ instance FromJSON Keyboard where
 keyboardInitializer :: Initializer
 keyboardInitializer sharedConst sharedIO
     = do
-        (clientSocket, clientConn, serverSock) <- setupWebsocketConnection ipAddress  keyboardPort
+        (clientSocket, clientConn, serverSock) <- setupWebsocketConnection iNADDR_ANY  keyboardPort
         safePrintLn (safePrintToken sharedConst) "Keyboard connection successfull"
         return (sharedConst, sharedIO, KeyboardConstants clientSocket clientConn serverSock, NoState)
 

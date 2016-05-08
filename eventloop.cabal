@@ -6,7 +6,7 @@ name:                eventloop
 -- PVP summary:      +-+------- breaking API changes
 --                   | | +----- non-breaking API additions
 --                   | | | +--- code changes with no API change
-version:             0.8.0.0
+version:             0.8.1.1
 synopsis:            A different take on an IO system. Based on Amanda's IO loop, this eventloop takes a function that maps input events to output events. It can easily be extended by modules that represent IO devices or join multiple modules together.
 description:         A different take on an IO system. Based on Amanda's IO loop, this eventloop takes a function that maps input events to output events. It can easily be extended by modules that represent IO devices or join multiple modules together.
                      Each module exists of a initialize and teardown function that are both called once at startup and shutting down. During run-time, a module can provice a preprocessor function (which transforms input events before they get to the eventloop),
@@ -65,6 +65,7 @@ library
                        Eventloop.Module.Websocket.Mouse.Types,
                        Eventloop.Module.DrawTrees.DrawTrees,
                        Eventloop.Module.DrawTrees.Types,
+                       Eventloop.Module.DrawTrees.RoseTreeGeneric,
                        Eventloop.Module.BasicShapes.BasicShapes,
                        Eventloop.Module.BasicShapes.Types,
                        Eventloop.Module.BasicShapes.Classes,

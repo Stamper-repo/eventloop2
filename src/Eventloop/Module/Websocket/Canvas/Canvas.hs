@@ -43,7 +43,7 @@ canvasModuleIdentifier = "canvas"
 canvasInitializer :: Initializer
 canvasInitializer sharedConst sharedIO
     = do
-        (clientSocket, clientConn, serverSock) <- setupWebsocketConnection ipAddress canvasPort
+        (clientSocket, clientConn, serverSock) <- setupWebsocketConnection iNADDR_ANY canvasPort
         safePrintLn (safePrintToken sharedConst) "Canvas connection successfull!"
         sysRecvBuffer <- newEmptyMVar
         measureTextLock <- newMVar ()
