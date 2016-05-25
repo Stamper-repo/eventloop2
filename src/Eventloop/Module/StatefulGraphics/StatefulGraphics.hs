@@ -128,7 +128,7 @@ calculateRedraws state ((Removed sg):performed)
         (_, toRedraw', toRemove') = calculateRedrawsForRemoved (state, toRedraw, toRemove) sg
 
 calculateRedraws state ((Modified sg):performed)
-    -- | noDimChange oldGraphic newGraphic = calculateDraws toCheck toRedraw (Drawn sg) TODO Modified -> Drawn optimalization
+    --  noDimChange oldGraphic newGraphic = calculateDraws toCheck toRedraw (Drawn sg) TODO Modified -> Drawn optimalization
     = calculateRedraws state ((Removed sg):(Drawn sg):performed)
 
 calculateRedraws state (NoOp:performed)

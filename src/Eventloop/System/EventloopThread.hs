@@ -56,7 +56,7 @@ findProcessors moduleConfigs getProcessorFunc
         moduleProcessors = map (\(id, ioConst, iostate, (Just processFunc)) -> (id, ioConst, iostate, processFunc)) moduleProcessorsJ
 
         
-eventloopSteps :: (progstateT -> In -> (progstateT, [Out])) {-| eventloop function -}
+eventloopSteps :: (progstateT -> In -> (progstateT, [Out])) {-^ eventloop function -}
                -> TVar progstateT
                -> [In]
                -> IO [Out]
@@ -67,7 +67,7 @@ eventloopSteps eventloop progstateT inEvents
         sequencedSteps = sequence inEventSteps
     
         
-eventloopStep :: (progstateT -> In -> (progstateT, [Out])) {-| eventloop function -}
+eventloopStep :: (progstateT -> In -> (progstateT, [Out])) {-^ eventloop function -}
               -> TVar progstateT
               -> In
               -> IO [Out]
