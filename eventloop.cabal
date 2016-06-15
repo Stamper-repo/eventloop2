@@ -23,7 +23,7 @@ homepage:            -
 license:             BSD3
 license-file:        LICENSE
 author:              Sebastiaan la Fleur
-maintainer:          sebastiaan.la.fleur@gmail.com
+maintainer:          sebastiaan@slafleur.nl
 copyright:           University of Twente 2015 | Sebastiaan la Fleur 2015
 category:            Eventloop
 build-type:          Simple
@@ -101,13 +101,13 @@ library
   
   other-extensions:    OverloadedStrings
   
-  build-depends:       base >=4.8 && <4.9, 
+  build-depends:       base >=4.8 && <4.10, 
                        network >=2.6 && <2.7, 
                        text >=1.2 && <1.3, 
                        websockets >=0.9 && <0.10, 
                        timers >=0.2 && <0.3, 
                        suspend >=0.2 && <0.3, 
-                       aeson >=0.8 && <0.9, 
+                       aeson >=0.8 && <0.12, 
                        bytestring >=0.10 && <0.11,
                        concurrent-utilities >=0.2 && <0.3,
                        stm >=2.4 && <2.5,
