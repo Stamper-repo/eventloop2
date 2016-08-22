@@ -30,6 +30,7 @@ instance ToOpcode ScreenPathPart where
     toOpcode (ArcTo _ _ _)           = 405
     toOpcode (Arc _ _ _)             = 406
     toOpcode (Rectangle _ _)         = 407
+    toOpcode (ClosePath)             = 408
 
 instance ToOpcode PathStroke where
     toOpcode (PathStroke _ _) = 501

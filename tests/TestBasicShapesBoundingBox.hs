@@ -27,7 +27,7 @@ eventloopConfiguration = defaultConfig { setupModuleConfigurations=[ setupBasicS
                     defaultConfig = allModulesEventloopSetupConfiguration beginProgramState eventloop
 
 
-shape prim = prim 5 (0, 0, 0, 255)
+shape prim = prim 20 (0, 0, 0, 255)
         -- (Just (Rotation AroundCenter 35))
          Nothing
         --(Just (Rotation (AroundPoint (Point (256, 256))) 45))

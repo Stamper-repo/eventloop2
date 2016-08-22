@@ -413,7 +413,7 @@ instance ToScreenPathPart Shape where
             p' = roundPoint p
             r' = round r
     toScreenPathParts (RegularPolygon {position=p, numberOfPoints=n, radius=r})
-        = Just (lines, screenPoint)
+        = Just (lines ++ [CT.ClosePath], screenPoint)
         where
             polygonPoints = allRegularPolygonPoints n p r
             (screenPoint:ps) = map roundPoint polygonPoints
@@ -432,7 +432,7 @@ instance ToScreenPathPart Shape where
             lines = [CT.LineTo p' | p' <- otherPoints']
 
     toScreenPathParts pol@(Polygon {points=points})
-        | (length points) > 0 = Just (lines ++ [CT.MoveTo p1'], p1')
+        | (length points) > 0 = Just (lines ++ [CT.MoveTo p1', CT.ClosePath], p1')
         | otherwise           = Nothing
         where
             allPoints = allScreenPolygonPoints pol

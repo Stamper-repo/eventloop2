@@ -115,6 +115,7 @@ data ScreenPathPart = MoveTo ScreenPoint {- ^Opcode: 0401-}
                     | ArcTo ScreenControlPoint ScreenControlPoint ScreenRadius {- ^Opcode: 0405-}
                     | Arc ScreenCircle ScreenStartingAngle ScreenEndAngle {- ^Opcode: 0406-}
                     | Rectangle ScreenPoint ScreenDimensions {- ^Opcode: 0407-}
+                    | ClosePath {- ^Opcode: 0408-}
                     deriving (Eq, Show, Generic, NFData)
 
 {- Styling of Shapes -}

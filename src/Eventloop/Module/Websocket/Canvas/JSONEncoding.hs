@@ -126,8 +126,8 @@ instance ToJSON ScreenPathPart where
     toJSON d@(Rectangle screenPoint screenDimensions) = operationObject (toOpcode d) [ toJSON screenPoint
                                                                                      , toJSON screenDimensions
                                                                                      ]
+    toJSON d@(ClosePath) = operationObject (toOpcode d) []
 
-    
 instance ToJSON PathStroke where
     toJSON d@(PathStroke screenLineThickness pathRenderStrokeStyle) = operationObject (toOpcode d) [ toJSON screenLineThickness
                                                                                                    , toJSON pathRenderStrokeStyle
