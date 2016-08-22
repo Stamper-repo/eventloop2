@@ -113,7 +113,7 @@ eventloop ps Start = (ps, [ OutCanvas $ C.SetupCanvas 1 1 canvasDimensions (C.CS
                                   
                              , multiline3
                              , circ2
-		             , circ3
+                     , circ3
                              , circ4
                              , polygon3
                              , bbox polygon3
