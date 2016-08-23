@@ -101,6 +101,13 @@ followVector distance followP startP
         size     = lengthBetweenPoints followP originPoint
 
 
+intersectVector :: Point -> Point -> Point -> Point -> Point
+intersectVector (Point (s1x, s1y)) (Point (v1x, v1y)) (Point (s2x, s2y)) (Point (v2x, v2y))
+    = Point (v1x * lambda + s1x, v1y * lambda + s1y)
+    where
+        lambda = (s1x - s2x - (v2x * s1y) / v2y + (v2x * s2y) / v2y) / ((v2x * v1y) / v2y - v1x)
+
+
 turnToVector :: Point -> Radians -> Point -> Point
 turnToVector toTurn@(Point (tux, tuy)) a turnTo@(Point (tox, toy))
     | (diffRadianCCW >= 0 && diffRadianCCW  <= half) || (diffRadianCCW' >= 0 && diffRadianCCW' <= half) = toPoint (PolarCoord (1, radianToTurn + a))
