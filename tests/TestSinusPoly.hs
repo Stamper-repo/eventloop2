@@ -25,7 +25,7 @@ maxX :: Float
 maxX = 4 * pi
 
 amount :: Int
-amount = 100000
+amount = 700000
 
 sinusZip :: [(Float, Float)]
 sinusZip

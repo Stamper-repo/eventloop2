@@ -90,8 +90,7 @@ takeMessage safePrintToken sock conn
                                 
                                 
 writeMessage :: Connection -> Message -> IO ()
-writeMessage conn message = do
-                                sendTextData conn (T.pack message)
+writeMessage conn message = sendTextData conn (T.pack message)
 
 writeBinaryMessage :: Connection -> ByteString -> IO ()
 writeBinaryMessage conn message = sendBinaryData conn message

@@ -75,11 +75,11 @@ startEventloopSystem setupConfig
                             putInBlockingConcurrentQueue outEventQueue_ Stop
 
                             -- Wait for the Stop to propagate
-                            threadDelay 100000
+                            threadDelay 1000000
 
                             -- Kill the outrouter and senders if need be
                             senders <- senderThreads systemConfig'
-                            senderTimers <- mapM (terminateWithinOrThrowException 1000000 (toException ShuttingDownException)) (outRouter ++ senders)
+                            senderTimers <- mapM (terminateWithinOrThrowException 2000000 (toException ShuttingDownException)) (outRouter ++ senders)
 
                             -- Wait for the outRouter and Sender
                             joinThreads (outRouter ++ senders)
