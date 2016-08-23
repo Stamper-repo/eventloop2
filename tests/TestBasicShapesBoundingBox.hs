@@ -11,7 +11,6 @@ import qualified Eventloop.Module.Websocket.Canvas as C
 import Eventloop.Module.BasicShapes
 import Eventloop.Utility.Vectors
 
-import Debug.Trace
 
 data ProgramState = ProgramState
                   deriving (Eq, Show)
