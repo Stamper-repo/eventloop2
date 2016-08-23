@@ -3,6 +3,7 @@ module Eventloop.Utility.Vectors where
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
+import Data.Fixed (mod')
 
 type Angle = Float -- ^In degrees
 type Radians = Float
@@ -14,10 +15,9 @@ type Offset = (X, Y)
 
 data PolarCoord = PolarCoord (Length, Radians)
                 deriving (Show, Eq)
-                
+
 data Point = Point (X, Y)
             deriving (Show, Eq, Generic, NFData)
-
 
 class Coord a where
     x :: a -> X
@@ -101,6 +101,22 @@ followVector distance followP startP
         size     = lengthBetweenPoints followP originPoint
 
 
+turnToVector :: Point -> Radians -> Point -> Point
+turnToVector toTurn@(Point (tux, tuy)) a turnTo@(Point (tox, toy))
+    | (diffRadianCCW >= 0 && diffRadianCCW  <= half) || (diffRadianCCW' >= 0 && diffRadianCCW' <= half) = toPoint (PolarCoord (1, radianToTurn + a))
+    | otherwise                                                                                         = toPoint (PolarCoord (1, radianToTurn - a))
+    where
+        (PolarCoord (_, radianToTurn)) = toPolarCoord toTurn
+        (PolarCoord (_, radianTurnTo)) = toPolarCoord turnTo
+        whole = 2 * pi
+        half = pi
+        quart = 0.5 * pi
+        diffRadianCCW = radianTurnTo - radianToTurn
+        radianTurnTo' = mod' (radianTurnTo - quart) whole
+        radianToTurn' = mod' (radianToTurn - quart) whole
+        diffRadianCCW' = radianTurnTo' - radianToTurn' -- Extra check due to hard split between 0 and 360
+
+
 originPoint = Point (0,0)
 
 class Translate a where
@@ -113,6 +129,7 @@ class (Coord a) => Vector2D a where
     (|/)  :: (Real b) => a -> b -> a
     (|*)  :: (Real b) => a -> b -> a
     negateVector :: a -> a
+    angleBetween :: a -> a -> Radians
 
 instance Vector2D PolarCoord where
     pc1 |+| pc2 = toPolarCoord $ (toPoint pc1) |+| (toPoint pc2)
@@ -128,6 +145,10 @@ instance Vector2D PolarCoord where
             l' = toRational l
             scalar' = toRational scalar
     negateVector pc1 = rotateLeftAround (Point (0,0)) 180 pc1
+
+    angleBetween pc1 pc2
+        = angleBetween (toPoint pc1) (toPoint pc2)
+
     
 instance Vector2D Point where
     (Point (x1, y1)) |+| (Point (x2, y2))
@@ -151,7 +172,14 @@ instance Vector2D Point where
     negateVector (Point (x, y))
         = Point (-x, -y)
 
-    
+    angleBetween v1@(Point (v1x, v1y)) v2@(Point (v2x, v2y))
+        = acos (dotProduct / (lv1 * lv2))
+        where
+            dotProduct = v1x * v2x + v1y * v2y
+            lv1 = lengthToPoint v1
+            lv2 = lengthToPoint v2
+
+
 class ToPoint a where
     toPoint :: a -> Point
     

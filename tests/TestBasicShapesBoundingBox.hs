@@ -42,6 +42,7 @@ line = shape $ Line (Point (300, 225)) (Point (350, 250))
 multiline = shape $ MultiLine [Point (400, 225), Point (425, 250), Point (450, 400)]
 multiline2 = MultiLine [Point (400, 225), Point (425, 250), Point (450, 400)] 2 (255, 0 ,0, 255) Nothing
 multiline3 = shape $ MultiLine [Point (350, 350), Point (375, 300), Point (400, 450)]
+multiline4 = shape $ MultiLine [Point (150, 400), Point (175, 350), Point (200, 500)]
 circ2 = Circle (Point (350, 350)) 1 (0, 255, 0, 255) 0 (0,0,0,0) Nothing
 circ3 = Circle (Point (375, 300)) 1 (0, 255, 0, 255) 0 (0,0,0,0) Nothing
 circ4 = Circle (Point (400, 450)) 1 (0, 255, 0, 255) 0 (0,0,0,0) Nothing
@@ -110,6 +111,10 @@ eventloop ps Start = (ps, [ OutCanvas $ C.SetupCanvas 1 1 canvasDimensions (C.CS
                              , bbox multiline
                              , rotatePoint multiline
                              , multiline2
+
+                             , multiline4
+                             , rotatePoint multiline4
+                             , bbox multiline4
                                   
                              , multiline3
                              , circ2
