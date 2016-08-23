@@ -29,6 +29,7 @@ type Color = (Red, Green, Blue, Alpha)
 type FillColor = Color
 type StrokeColor = Color
 
+type FillThickness = GraphicalNumeric
 type StrokeLineThickness = GraphicalNumeric
 
 type UpperLeft = Point
@@ -92,6 +93,13 @@ data Shape = CompositeShape { shapes :: [Shape]
                        , strokeColor :: StrokeColor
                        , rotationM :: Maybe Rotation
                        }
+           | FilledMultiLine { points :: [Point]
+                             , fillWidth :: FillThickness
+                             , fillColor :: FillColor
+                             , strokeLineThickness :: StrokeLineThickness
+                             , strokeColor :: StrokeColor
+                             , rotationM :: Maybe Rotation
+                             }
            | Polygon { points :: [Point] -- ^| Closes shape automatically with fill. Do not forget that the fill encloses the entire path. This means that half of the stroke is overwritten by the fill.
                      , fillColor :: FillColor
                      , strokeLineThickness :: StrokeLineThickness

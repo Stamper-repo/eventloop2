@@ -27,7 +27,7 @@ eventloopConfiguration = defaultConfig { setupModuleConfigurations=[ setupBasicS
                     defaultConfig = allModulesEventloopSetupConfiguration beginProgramState eventloop
 
 
-shape prim = prim 20 (0, 0, 0, 255)
+shape prim = prim 1 (0, 0, 0, 255)
          --(Just (Rotation AroundCenter 35))
          Nothing
         --(Just (Rotation (AroundPoint (Point (256, 256))) 45))
@@ -48,7 +48,7 @@ circ3 = Circle (Point (375, 300)) 1 (0, 255, 0, 255) 0 (0,0,0,0) Nothing
 circ4 = Circle (Point (400, 450)) 1 (0, 255, 0, 255) 0 (0,0,0,0) Nothing
 polygon3 = Polygon [Point (465, 465), Point (465, 490), Point (460, 490), Point (470, 502), Point (480, 490), Point (475, 490), Point (475, 465)] (0, 255, 0, 125) 10 (255, 0, 0, 255) (Just (Rotation AroundCenter 75))
 polygon4 = Polygon [Point (465, 465), Point (465, 490), Point (460, 490), Point (470, 502), Point (480, 490), Point (475, 490), Point (475, 465)] (0, 255, 0, 0) 2 (0, 0, 0, 255) (Just (Rotation AroundCenter 35))
-
+filledMultiLine = FilledMultiLine [Point (390, 505), Point (360, 505), Point (340, 475), Point (385, 455), Point (300, 455)] 4 (0,255,0,255) 2 (255,0,0,255) Nothing
 
 middlePoint :: Shape
 middlePoint
@@ -138,6 +138,11 @@ eventloop ps Start = (ps, [ OutCanvas $ C.SetupCanvas 1 1 canvasDimensions (C.CS
                              , bbox polygon4
                              , rotatePoint polygon4
                              , polygon4
+
+                             , filledMultiLine
+                             , bbox filledMultiLine
+                             , rotatePoint filledMultiLine
+
 
                              , rotatePoint boundBox
                              , bboxShape $ rotateLeftAround bboxRotatePoint 45 boundBox

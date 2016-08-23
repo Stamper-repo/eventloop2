@@ -240,6 +240,8 @@ instance ToPrimitives Shape where
             tailPoints = drop 1 points
             linePoints = zip points tailPoints
             lines = map (\(p, p') -> Line p p' thick undefined Nothing) linePoints
+    toPrimitives (FilledMultiLine {points=points, fillWidth=fillThick, strokeLineThickness=strokeThick, rotationM=Nothing})
+        = (toPrimitives (MultiLine points fillThick undefined Nothing)) ++ (toPrimitives (MultiLine points (fillThick + strokeThick) undefined Nothing))
     toPrimitives pol@(Polygon {points=points, strokeLineThickness=thick, rotationM=Nothing})
         | length points >= 3 = [ Points (strokePointsClosedPath thick points)]
         | length points == 2 = toPrimitives (Line p1 p2 thick undefined Nothing)
@@ -288,6 +290,8 @@ instance ToCenter Shape where
         = (toCenter.toBoundingBox) l
     toCenter ml@(MultiLine {})
         = (toCenter.toBoundingBox) ml
+    toCenter fml@(FilledMultiLine {})
+        = (toCenter.toBoundingBox) fml
     toCenter a@(Polygon {})
         = (toCenter.toBoundingBox) a
     toCenter shape
@@ -402,6 +406,10 @@ instance ToCanvasOperations Shape where
           screenStrokeColor = roundColor stroke
           screenFillColor = roundColor fill
           p' = roundPoint p
+
+    toCanvasOperations (FilledMultiLine points fillWidth fillColor strokeThick strokeColor Nothing)
+        =  toCanvasOperations (MultiLine points (fillWidth + strokeThick) strokeColor Nothing)
+        ++ toCanvasOperations (MultiLine points fillWidth fillColor Nothing)
 
     toCanvasOperations shape
         -- Might be any rotated shape
