@@ -28,7 +28,7 @@ eventloopConfiguration = defaultConfig { setupModuleConfigurations=[ setupBasicS
 
 
 shape prim = prim 20 (0, 0, 0, 255)
-        -- (Just (Rotation AroundCenter 35))
+         --(Just (Rotation AroundCenter 35))
          Nothing
         --(Just (Rotation (AroundPoint (Point (256, 256))) 45))
 
@@ -36,7 +36,7 @@ shape prim = prim 20 (0, 0, 0, 255)
 rect = shape $ Rectangle (Point (125, 135)) (52, 10) (255, 0, 0, 255)
 circ = shape $ Circle (Point (125, 50)) 25 (0, 255, 0, 255)
 text_ = shape $ Text "Hellog World!" "New Times Roman" 24 (Point (200, 25)) AlignLeft (125, 125, 125, 255)
-polygon1 = shape $ RegularPolygon (Point (50, 200)) 3 50 (0, 0, 255, 255)
+polygon1 = shape $ RegularPolygon (Point (50, 200)) 3 50 (0, 0, 255, 0)
 polygon2 = shape $ RegularPolygon (Point (200, 200)) 5 50 (0, 255, 0, 255)
 line = shape $ Line (Point (300, 225)) (Point (350, 250))
 multiline = shape $ MultiLine [Point (400, 225), Point (425, 250), Point (450, 400)]
@@ -46,8 +46,8 @@ multiline4 = shape $ MultiLine [Point (150, 400), Point (175, 350), Point (200, 
 circ2 = Circle (Point (350, 350)) 1 (0, 255, 0, 255) 0 (0,0,0,0) Nothing
 circ3 = Circle (Point (375, 300)) 1 (0, 255, 0, 255) 0 (0,0,0,0) Nothing
 circ4 = Circle (Point (400, 450)) 1 (0, 255, 0, 255) 0 (0,0,0,0) Nothing
-polygon3 = Polygon [Point (465, 465), Point (465, 490), Point (460, 490), Point (470, 502), Point (480, 490), Point (475, 490), Point (475, 465)] (0, 255, 0, 125) 10 (255, 0, 0, 255) Nothing
-polygon4 = Polygon [Point (465, 465), Point (465, 490), Point (460, 490), Point (470, 502), Point (480, 490), Point (475, 490), Point (475, 465)] (0, 255, 0, 0) 2 (0, 0, 0, 255) Nothing
+polygon3 = Polygon [Point (465, 465), Point (465, 490), Point (460, 490), Point (470, 502), Point (480, 490), Point (475, 490), Point (475, 465)] (0, 255, 0, 125) 10 (255, 0, 0, 255) (Just (Rotation AroundCenter 75))
+polygon4 = Polygon [Point (465, 465), Point (465, 490), Point (460, 490), Point (470, 502), Point (480, 490), Point (475, 490), Point (475, 465)] (0, 255, 0, 0) 2 (0, 0, 0, 255) (Just (Rotation AroundCenter 35))
 
 
 middlePoint :: Shape
@@ -68,6 +68,16 @@ bbox :: Shape -> Shape
 bbox shape
     = bboxShape shape
 
+strokePointsShapes :: Shape -> [Point] -> [Shape]
+strokePointsShapes shape points
+    = map (\p -> Circle p 2 (125,125,0,200) 0 (0,0,0,0) Nothing) strokePoints_
+    where
+        thick = strokeLineThickness shape
+        strokePoints_ = strokePointsClosedPath thick points
+
+mkCirc :: [Point] -> [Shape]
+mkCirc ps
+    = map (\p -> Circle p 2 (0,125,0,200) 0 (0,0,0,0) Nothing) ps
 
 bboxShape :: (ToBoundingBox a) => a -> Shape
 bboxShape a
@@ -86,7 +96,7 @@ eventloop ps Start = (ps, [ OutCanvas $ C.SetupCanvas 1 1 canvasDimensions (C.CS
                     shapes = [ rect
                              , bbox rect
                              , rotatePoint rect
-                              --{-
+
                              , circ
                              , bbox circ
                              , rotatePoint circ
@@ -118,11 +128,15 @@ eventloop ps Start = (ps, [ OutCanvas $ C.SetupCanvas 1 1 canvasDimensions (C.CS
                                   
                              , multiline3
                              , circ2
-                     , circ3
+                             , circ3
                              , circ4
+
                              , polygon3
                              , bbox polygon3
                              , rotatePoint polygon3
+
+                             , bbox polygon4
+                             , rotatePoint polygon4
                              , polygon4
 
                              , rotatePoint boundBox

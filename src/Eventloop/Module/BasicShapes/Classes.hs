@@ -110,6 +110,41 @@ roundColor :: Color -> CT.ScreenColor
 roundColor (r, b, g, a) = (round r, round b, round g, a)
 
 
+strokePointsForConnection :: StrokeLineThickness -> Point -> Point -> Point -> [Point]
+strokePointsForConnection strokeWidth start inspected dest
+    = [intersectVector sdown1 v1 sdown2 v2, intersectVector sup1 v1 sup2 v2]
+    where
+        halfWidth = strokeWidth / 2
+        quart = 0.5 * pi
+        v1 = inspected |-| start
+        v1' = negateVector v1
+        v2 = inspected |-| dest
+        v2' = negateVector v2
+        upv1 = turnToVector v1 quart v2
+        sup1 = followVector halfWidth upv1 inspected
+        upv2 = turnToVector v2 quart v1
+        sup2 = followVector halfWidth upv2 inspected
+        downv1 = negateVector upv1
+        sdown1 = followVector halfWidth downv1 inspected
+        downv2 = negateVector upv2
+        sdown2 = followVector halfWidth downv2 inspected
+
+
+strokePoints :: StrokeLineThickness -> [Point] -> [Point]
+strokePoints strokeWidth ps
+    | l >= 3    = concat $ map (\(start, inspected, dest) -> strokePointsForConnection strokeWidth start inspected dest) connections
+    | otherwise = []
+    where
+        l = length ps
+        connections = zip3 ps (drop 1 ps) (drop 2 ps)
+
+
+strokePointsClosedPath :: StrokeLineThickness -> [Point] -> [Point]
+strokePointsClosedPath strokeWidth ps
+    | length ps >= 3 = strokePoints strokeWidth (ps ++ take 2 ps)
+    | otherwise = []
+
+
 instance Translate Shape where
     translate p c@(CompositeShape {positionM=Nothing})
         = c {positionM = (Just p)}
@@ -159,13 +194,9 @@ instance ToPrimitives Shape where
     toPrimitives (Circle {position=p, radius=r, strokeLineThickness=thick, rotationM=Nothing})
         = [CircleArea p (r + 0.5 * thick)]
     toPrimitives (RegularPolygon {numberOfPoints=a, position=p, radius=r, strokeLineThickness=thick, rotationM=Nothing})
-        | a > 2  = toPrimitives (MultiLine points thick undefined Nothing)
-        | a == 2 = toPrimitives (Line p1 p2 thick undefined Nothing)
-        | a == 1 = [Points (take 1 points)]
-        | a == 0 = [Points []]
+        = toPrimitives (Polygon points undefined thick undefined Nothing)
         where
              points = allRegularPolygonPoints a p r
-             (p1:p2:ops) = points
     toPrimitives text@(Text {position=(Point (x,y)), alignment=align, rotationM=Nothing})
         = [ Points $ case align of
             CT.AlignLeft   -> [ Point (x, y)
@@ -203,15 +234,19 @@ instance ToPrimitives Shape where
             upPerpVector = upPerpendicular p1 p2
             downPerpVector = negateVector upPerpVector
     toPrimitives (MultiLine {points=points, strokeLineThickness=thick, rotationM=Nothing})
-        = concat $ map toPrimitives lines
+        = (Points strokePoints_) : (concat $ map toPrimitives lines)
         where
+            strokePoints_ = strokePoints thick points
             tailPoints = drop 1 points
             linePoints = zip points tailPoints
             lines = map (\(p, p') -> Line p p' thick undefined Nothing) linePoints
-    toPrimitives pol@(Polygon {points=points, strokeLineThickness=thick, strokeColor=strokeColor, rotationM=Nothing})
-        = toPrimitives (MultiLine allPoints thick strokeColor Nothing)
+    toPrimitives pol@(Polygon {points=points, strokeLineThickness=thick, rotationM=Nothing})
+        | length points >= 3 = [ Points (strokePointsClosedPath thick points)]
+        | length points == 2 = toPrimitives (Line p1 p2 thick undefined Nothing)
+        | length points == 1 = [ CircleArea p1 thick ]
+        | otherwise          = [ Points []]
         where
-            allPoints = allScreenPolygonPoints pol
+            (p1:p2:ps) = points
     toPrimitives shape
         = map (rotateLeftAround rotatePoint angle) (toPrimitives shapePreRotate)
         where
@@ -432,7 +467,7 @@ instance ToScreenPathPart Shape where
             lines = [CT.LineTo p' | p' <- otherPoints']
 
     toScreenPathParts pol@(Polygon {points=points})
-        | (length points) > 0 = Just (lines ++ [CT.MoveTo p1', CT.ClosePath], p1')
+        | (length points) > 0 = Just (lines ++ [CT.ClosePath], p1')
         | otherwise           = Nothing
         where
             allPoints = allScreenPolygonPoints pol
@@ -463,13 +498,11 @@ hasCanvasPathFill _
 
 
 allScreenPolygonPoints :: Shape -> [Point]
-allScreenPolygonPoints (Polygon {points=points, strokeLineThickness=thick})
-    | (length points) >= 2 = points ++ [closeP]
+allScreenPolygonPoints (Polygon {points=points})
+    | (length points) >= 2 = points ++ [firstP]
     | otherwise            = points
     where
         firstP = head points
         lastP  = last points
-        closeP = followVector (0.5 * thick) (firstP |-| lastP) firstP
-
 
 

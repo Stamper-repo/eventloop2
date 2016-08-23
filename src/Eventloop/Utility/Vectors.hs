@@ -102,8 +102,9 @@ followVector distance followP startP
 
 
 intersectVector :: Point -> Point -> Point -> Point -> Point
-intersectVector (Point (s1x, s1y)) (Point (v1x, v1y)) (Point (s2x, s2y)) (Point (v2x, v2y))
-    = Point (v1x * lambda + s1x, v1y * lambda + s1y)
+intersectVector s1@(Point (s1x, s1y)) v1@(Point (v1x, v1y)) s2@(Point (s2x, s2y)) v2@(Point (v2x, v2y))
+    | v2y /= 0 = Point (v1x * lambda + s1x, v1y * lambda + s1y)
+    | otherwise = intersectVector s2 v2 s1 v1
     where
         lambda = (s1x - s2x - (v2x * s1y) / v2y + (v2x * s2y) / v2y) / ((v2x * v1y) / v2y - v1x)
 
