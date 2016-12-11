@@ -19,7 +19,7 @@ data StatefulGraphicsOut
 
 data GraphicPerformed
     = Drawn StatefulBB
-    | Modified StatefulBB
+    | Modified StatefulBB StatefulBB
     | Removed StatefulBB
     | NoOp
 

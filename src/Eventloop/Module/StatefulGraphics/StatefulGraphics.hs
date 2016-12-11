@@ -104,7 +104,7 @@ Uses yMin as canvas treats rectangle from their lower left corner
 calculateRemove :: StatefulBB
                 -> ClearPart
 calculateRemove (StatefulBB _ bb)
-    = ClearRectangle (round $ xMin bb, round $ yMin bb) (round width, round height)
+    = ClearRectangle (floor $ xMin bb, floor $ yMin bb) (ceiling width + 1, ceiling height + 1)
     where
         height = (yMax bb) - (yMin bb)
         width = (xMax bb) - (xMin bb)
@@ -127,9 +127,9 @@ calculateRedraws state ((Removed sg):performed)
         (toRedraw, toRemove) = calculateRedraws state performed
         (_, toRedraw', toRemove') = calculateRedrawsForRemoved (state, toRedraw, toRemove) sg
 
-calculateRedraws state ((Modified sg):performed)
+calculateRedraws state ((Modified old_sg new_sg):performed)
     --  noDimChange oldGraphic newGraphic = calculateDraws toCheck toRedraw (Drawn sg) TODO Modified -> Drawn optimalization
-    = calculateRedraws state ((Removed sg):(Drawn sg):performed)
+    = calculateRedraws state ((Removed old_sg):(Drawn new_sg):performed)
 
 calculateRedraws state (NoOp:performed)
     = calculateRedraws state performed
@@ -221,7 +221,7 @@ splitOn on (x:xs)
 performStatefulGraphicsOut :: GraphicsState -> StatefulGraphicsOut -> (GraphicsState, GraphicPerformed)
 performStatefulGraphicsOut state (Draw statefulGraphic)
     = case oldStatefulGraphicM of
-        Just oldStatefulGraphic -> (state', Modified statefulBB)
+        Just oldStatefulGraphic -> (state', Modified oldStatefulGraphic statefulBB)
         Nothing                 -> (state', Drawn statefulBB)
     where
         statefulBB = (StatefulBB statefulGraphic bb)
