@@ -35,6 +35,7 @@ Bugs:
 
 data GeometricPrimitive = Points [Point]
                         | CircleArea Point Radius
+                        deriving (Show, Eq)
 
 
 instance RotateLeftAround GeometricPrimitive where
@@ -233,9 +234,13 @@ instance ToPrimitives Shape where
         where
             upPerpVector = upPerpendicular p1 p2
             downPerpVector = negateVector upPerpVector
-    toPrimitives (MultiLine {points=points, strokeLineThickness=thick, rotationM=Nothing})
-        = (Points strokePoints_) : (concat $ map toPrimitives lines)
+    toPrimitives (MultiLine {points=points, strokeLineThickness=thick, strokeColor=color, rotationM=Nothing})
+        | len >= 3 = (Points strokePoints_) : (concat $ map toPrimitives lines)
+        | len == 2 = toPrimitives (Line p1 p2 thick color Nothing)
+        | otherwise = error "Multilines should atleast include 2 points!"
         where
+            [p1, p2] = points
+            len = length points
             strokePoints_ = strokePoints thick points
             tailPoints = drop 1 points
             linePoints = zip points tailPoints
