@@ -101,12 +101,43 @@ followVector distance followP startP
         size     = lengthBetweenPoints followP originPoint
 
 
-intersectVector :: Point -> Point -> Point -> Point -> Point
-intersectVector s1@(Point (s1x, s1y)) v1@(Point (v1x, v1y)) s2@(Point (s2x, s2y)) v2@(Point (v2x, v2y))
-    | v2y /= 0 = Point (v1x * lambda + s1x, v1y * lambda + s1y)
-    | otherwise = intersectVector s2 v2 s1 v1
+intersectVector :: Point -> Point -> Point -> Point -> Maybe Point
+intersectVector s1@(Point (sx1, sy1)) v1@(Point (vx1, vy1)) s2@(Point (sx2, sy2)) v2@(Point (vx2, vy2))
+    -- Optimization
+    | sx1 == sx2 && sy1 == sy2 = Just $ Point (sx1, sy1)
+
+    -- alpha relation exists
+    | alpha4_1_divisor /= 0 = Just $ Point(vx1 * alpha4_1 + sx1, vy1 * alpha4_1 + sy1)
+    -- 2 or more directions are empty in such a way alpha does not exist: (v2x == 0 || v1y == 0) && (v1x == 0 && v2y == 0)
+
+    -- 2 vector direction == zero
+    | vx1 == 0 && vy1 /= 0 && vx2 == 0 && vy2 /= 0     && sx1 == sx2 = Just $ Point (sx1, alpha_vy1_zero * vy2 + sy2) -- Do as if vy1 == 0 even if it isn't. We need to choose a point
+    | vx1 /= 0 && vy1 == 0 && vx2 /= 0 && vy2 == 0     && sy1 == sy2 = Just $ Point (alpha_vx1_zero * vx2 + sx2, sy1)
+
+    | vx1 == 0 && vy1 == 0 && vx2 /= 0 && vy2 /= 0     && alpha_vx1_zero == alpha_vy1_zero = Just $ Point (alpha_vx1_zero * vx2 + sx2, alpha_vy1_zero * vy2 + sy2)
+    | vx1 /= 0 && vy1 /= 0 && vx2 == 0 && vy2 == 0     && alpha_vx2_zero == alpha_vy2_zero = Just $ Point (alpha_vx2_zero * vx1 + sx1, alpha_vy2_zero * vy1 + sy1)
+
+    -- 3 vector direction == zero
+    | vx1 /= 0 && vy1 == 0 && vx2 == 0 && vy2 == 0    && sy1 == sy2 = Just $ Point (alpha_vx2_zero * vx1 + sx1, sy1)
+    | vx1 == 0 && vy1 /= 0 && vx2 == 0 && vy2 == 0    && sx1 == sx2 = Just $ Point (sx1, alpha_vy2_zero * vy1 + sy1)
+    | vx1 == 0 && vy1 == 0 && vx2 /= 0 && vy2 == 0    && sy1 == sy2 = Just $ Point (alpha_vx1_zero * vx2 + sx2, sy2)
+    | vx1 == 0 && vy1 == 0 && vx2 == 0 && vy2 /= 0    && sx1 == sx2 = Just $ Point (sx2, alpha_vy1_zero * vy2 + sy2)
+
+    -- 4 vector direction == zero
+    | vx1 == 0 && vy1 == 0 && vx2 == 0 && vy2 == 0    && s1 == s2 = Just $ s1
+
+    | otherwise = Nothing
     where
-        lambda = (s1x - s2x - (v2x * s1y) / v2y + (v2x * s2y) / v2y) / ((v2x * v1y) / v2y - v1x)
+        alpha4_1_divisor = vx2 * vy1 - vx1 * vy2
+        alpha4 (Point (dx1, dy1)) (Point (x1, y1)) (Point (dx2, dy2)) (Point (x2, y2)) = (dy2 * x1 - x2 * dy2 + dx2 * y2 - dx2 * y1) / (dx2 * dy1 - dx1 * dy2)
+        alpha4_1 = alpha4 v1 s1 v2 s2
+        alpha4_2 = alpha4 v2 s2 v1 s1
+
+        alphaZero dx1 x1 x2 = (x2 - x1) / dx1
+        alpha_vx1_zero = alphaZero vx2 sx2 sx1
+        alpha_vx2_zero = alphaZero vx1 sx1 sx2
+        alpha_vy1_zero = alphaZero vy2 sy2 sy1
+        alpha_vy2_zero = alphaZero vy1 sy1 sy2
 
 
 turnToVector :: Point -> Radians -> Point -> Point

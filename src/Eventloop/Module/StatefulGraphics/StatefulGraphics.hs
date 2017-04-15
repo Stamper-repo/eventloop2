@@ -104,7 +104,7 @@ Uses yMin as canvas treats rectangle from their lower left corner
 calculateRemove :: StatefulBB
                 -> ClearPart
 calculateRemove (StatefulBB _ bb)
-    = ClearRectangle (floor $ xMin bb, floor $ yMin bb) (ceiling width + 1, ceiling height + 1)
+    = ClearRectangle ((floor $ xMin bb) - 1, (floor $ yMin bb) - 1) (ceiling width + 2, ceiling height + 2)
     where
         height = (yMax bb) - (yMin bb)
         width = (xMax bb) - (xMin bb)

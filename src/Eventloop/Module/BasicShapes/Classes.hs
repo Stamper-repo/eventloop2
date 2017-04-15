@@ -8,7 +8,6 @@ import Eventloop.Module.BasicShapes.Types
 import Eventloop.Module.BasicShapes.MeasureTextHack
 import qualified Eventloop.Module.Websocket.Canvas.Types as CT
 
-
 {-
 The center of a boundingbox is not the center of an element
     Rectangle - Intersection of two halves of adjoining sides
@@ -110,10 +109,24 @@ roundPoint (Point (x, y)) = (round x, round y)
 roundColor :: Color -> CT.ScreenColor
 roundColor (r, b, g, a) = (round r, round b, round g, a)
 
+strokePointsForLine :: StrokeLineThickness -> Point -> Point -> [Point]
+strokePointsForLine thick p1 p2
+    = [ followVector (0.5 * thick) upPerpVector p1
+      , followVector (0.5 * thick) upPerpVector p2
+      , followVector (0.5 * thick) downPerpVector p1
+      , followVector (0.5 * thick) downPerpVector p2
+      ]
+
+    where
+        upPerpVector = upPerpendicular p1 p2
+        downPerpVector = negateVector upPerpVector
 
 strokePointsForConnection :: StrokeLineThickness -> Point -> Point -> Point -> [Point]
 strokePointsForConnection strokeWidth start inspected dest
-    = [intersectVector sdown1 v1 sdown2 v2, intersectVector sup1 v1 sup2 v2]
+    | start == inspected && inspected == dest = [dest]
+    | start == inspected                      = strokePointsForLine strokeWidth inspected dest
+    | inspected == dest                       = strokePointsForLine strokeWidth start inspected
+    | otherwise                               = [p1, p2]
     where
         halfWidth = strokeWidth / 2
         quart = 0.5 * pi
@@ -129,6 +142,8 @@ strokePointsForConnection strokeWidth start inspected dest
         sdown1 = followVector halfWidth downv1 inspected
         downv2 = negateVector upv2
         sdown2 = followVector halfWidth downv2 inspected
+        (Just p1) = intersectVector sdown1 v1 sdown2 v2
+        (Just p2) = intersectVector sup1 v1 sup2 v2
 
 
 strokePoints :: StrokeLineThickness -> [Point] -> [Point]
@@ -225,15 +240,7 @@ instance ToPrimitives Shape where
             hheight = height * 0.5
 
     toPrimitives (Line {point1=p1, point2=p2, strokeLineThickness=thick, rotationM=Nothing})
-        = [ Points [ followVector (0.5 * thick) upPerpVector p1
-                   , followVector (0.5 * thick) upPerpVector p2
-                   , followVector (0.5 * thick) downPerpVector p1
-                   , followVector (0.5 * thick) downPerpVector p2
-                   ]
-          ]
-        where
-            upPerpVector = upPerpendicular p1 p2
-            downPerpVector = negateVector upPerpVector
+        = [Points (strokePointsForLine thick p1 p2)]
     toPrimitives (MultiLine {points=points, strokeLineThickness=thick, strokeColor=color, rotationM=Nothing})
         | len >= 3 = (Points strokePoints_) : (concat $ map toPrimitives lines)
         | len == 2 = toPrimitives (Line p1 p2 thick color Nothing)
