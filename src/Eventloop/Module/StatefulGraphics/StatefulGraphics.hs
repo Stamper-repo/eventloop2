@@ -114,14 +114,14 @@ calculateRedraws :: GraphicsState
                  -> [GraphicPerformed]
                  -> (GraphicsState, GraphicsState) -- Redraw and Remove state
 calculateRedraws _ [] = ([], [])
-calculateRedraws state ((Drawn sbb):performed)
-    = (toRedraw', toRemove)
+calculateRedraws state ((Drawn sbb@(StatefulBB (Stateful name _ _) _)):performed)
+    = (toRedraw', toRemove')
     where
         id = getId sbb
         (toRedraw, toRemove) = calculateRedraws state performed
-        (_, toRedraw') = calculateRedrawsForDrawn (state, toRedraw) sbb
+        (_, toRedraw', toRemove') = calculateRedrawsForDrawn (state, toRedraw, toRemove) sbb
 
-calculateRedraws state ((Removed sg):performed)
+calculateRedraws state ((Removed sg@(StatefulBB (Stateful name _ _) _)):performed)
     = (toRedraw', toRemove')
     where
         (toRedraw, toRemove) = calculateRedraws state performed
@@ -141,11 +141,15 @@ graphic. Also add the drawn graphic to redraw.
 However, if there is one graphic to be found that completely contains the drawn graphic, nothing has to happen.
 Also, all graphics completely behind the drawn graphic, will not be redrawn.
 -}
-calculateRedrawsForDrawn :: (GraphicsState, GraphicsState) -- Current check and redraw state
+calculateRedrawsForDrawn :: (GraphicsState, GraphicsState, GraphicsState) -- Current check and redraw state
                          -> StatefulBB
-                         -> (GraphicsState, GraphicsState)
-calculateRedrawsForDrawn (toCheck, toRedraw) new
-    = foldl calculateRedrawsForDrawn (toCheck', toRedraw') checkNow
+                         -> (GraphicsState, GraphicsState, GraphicsState)
+calculateRedrawsForDrawn (toCheck, toRedraw, toRemove) new@(StatefulBB (Stateful id _ (Text {})) _)
+   = calculateRedrawsForRemoved (toCheck', new:toRedraw, toRemove) new
+   where
+       toCheck' = fst $ removeGraphic toCheck id
+calculateRedrawsForDrawn (toCheck, toRedraw, toRemove) new
+    = foldl calculateRedrawsForDrawn (toCheck', toRedraw', toRemove) checkNow
     where
         id = getId new
         z  = getZ new
@@ -181,15 +185,13 @@ calculateRedrawsForRemoved (toCheck, toRedraw, toRemove) old
         aboveContained   = filter (contains old) above
         aboveContainedBy = filter (\sg -> contains sg old) above
 
-        toRemove' = old:toRemove
-
         checkNow = belowOverlapped
                  ++ belowContained
                  ++ belowContainedBy
                  ++ aboveOverlapped
                  ++ aboveContained
                  ++ aboveContainedBy
-        (toCheck', toRedraw') = foldl calculateRedrawsForDrawn (toCheck, toRedraw) checkNow
+        (toCheck', toRedraw', toRemove') = foldl calculateRedrawsForDrawn (toCheck, toRedraw, old:toRemove) checkNow
 
 
 statefulIds :: GraphicsState -> [NamedId]
