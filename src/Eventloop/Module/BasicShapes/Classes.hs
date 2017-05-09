@@ -126,7 +126,10 @@ strokePointsForConnection strokeWidth start inspected dest
     | start == inspected && inspected == dest = [dest]
     | start == inspected                      = strokePointsForLine strokeWidth inspected dest
     | inspected == dest                       = strokePointsForLine strokeWidth start inspected
-    | otherwise                               = [p1, p2]
+    | isJust mp1 && isJust mp2                = [fromJust mp1, fromJust mp2]
+    | otherwise                               = [sup1, sdown1] -- Is possible due to rounding. Direction vectors are roughly parallel but stepping points are not equal
+                                                               -- GHC will think parallel vectors are parallel while they are not. So no intersection as stepping points are slightly different
+                                                               -- Just return half width up and down from inspected as this is close enough
     where
         halfWidth = strokeWidth / 2
         quart = 0.5 * pi
@@ -142,8 +145,8 @@ strokePointsForConnection strokeWidth start inspected dest
         sdown1 = followVector halfWidth downv1 inspected
         downv2 = negateVector upv2
         sdown2 = followVector halfWidth downv2 inspected
-        (Just p1) = intersectVector sdown1 v1 sdown2 v2
-        (Just p2) = intersectVector sup1 v1 sup2 v2
+        mp1 = intersectVector sdown1 v1 sdown2 v2
+        mp2 = intersectVector sup1 v1 sup2 v2
 
 
 strokePoints :: StrokeLineThickness -> [Point] -> [Point]
