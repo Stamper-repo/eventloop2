@@ -16,7 +16,6 @@ import Eventloop.Types.Events
 import Eventloop.Types.System
 import Eventloop.Utility.Vectors
 
-
 setupStatefulGraphicsModuleConfiguration :: EventloopSetupModuleConfiguration
 setupStatefulGraphicsModuleConfiguration = ( EventloopSetupModuleConfiguration
                                               statefulGraphicsModuleIdentifier
@@ -145,9 +144,10 @@ calculateRedrawsForDrawn :: (GraphicsState, GraphicsState, GraphicsState) -- Cur
                          -> StatefulBB
                          -> (GraphicsState, GraphicsState, GraphicsState)
 calculateRedrawsForDrawn (toCheck, toRedraw, toRemove) new@(StatefulBB (Stateful id _ (Text {})) _)
-   = calculateRedrawsForRemoved (toCheck', new:toRedraw, toRemove) new
+   = calculateRedrawsForRemoved (toCheck', toRedraw', toRemove) new
    where
        toCheck' = fst $ removeGraphic toCheck id
+       toRedraw' = fst $ addOrReplaceGraphic toRedraw new
 calculateRedrawsForDrawn (toCheck, toRedraw, toRemove) new
     = foldl calculateRedrawsForDrawn (toCheck', toRedraw', toRemove) checkNow
     where
@@ -170,7 +170,7 @@ calculateRedrawsForRemoved :: (GraphicsState, GraphicsState, GraphicsState) -- C
                            -> StatefulBB
                            -> (GraphicsState, GraphicsState, GraphicsState)
 calculateRedrawsForRemoved (toCheck, toRedraw, toRemove) old
-    = (toCheck', toRedraw', toRemove')
+    = (toCheck'', toRedraw', toRemove'')
     where
         id = getId old
         z = getZ old
@@ -191,7 +191,9 @@ calculateRedrawsForRemoved (toCheck, toRedraw, toRemove) old
                  ++ aboveOverlapped
                  ++ aboveContained
                  ++ aboveContainedBy
-        (toCheck', toRedraw', toRemove') = foldl calculateRedrawsForDrawn (toCheck, toRedraw, old:toRemove) checkNow
+        toRemove' = fst $ addOrReplaceGraphic toRemove old
+        toCheck' = fst $ removeGraphic toCheck id
+        (toCheck'', toRedraw', toRemove'') = foldl calculateRedrawsForDrawn (toCheck', toRedraw, toRemove') checkNow
 
 
 statefulIds :: GraphicsState -> [NamedId]
