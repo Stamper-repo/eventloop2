@@ -32,7 +32,7 @@ eventloop ps Start = (ps, [ OutCanvas $ C.SetupCanvas 1 1 (512, 512) (C.CSSPosit
                     shapes = [ Rectangle (Point (25, 25)) (100, 10) (255, 0, 0, 255) 1 (0, 0, 0, 255) (Just $ Rotation AroundCenter 45)
                              , Circle (Point (100, 100)) 25 (0, 255, 0, 255) 1 (0, 0, 0, 255) Nothing
                              , Rectangle (Point (25, 25)) (100, 10) (255, 0, 0, 255) 1 (0, 0, 0, 255) Nothing
-                             , Text "Hello World!" "New Times Roman" 24 (Point (250, 250)) AlignLeft (125, 125, 125, 255) 1 (255, 0, 0, 255) Nothing
+                             , Text "Hello World!" "monospace" 24 (Point (250, 250)) AlignLeft (125, 125, 125, 255) 1 (255, 0, 0, 255) Nothing
                              , RegularPolygon (Point (350, 350)) 3 50 (0, 0, 255, 255) 1 (255, 0, 0, 255) Nothing
                              , RegularPolygon (Point (425, 425)) 4 50 (0, 0, 255, 255) 1 (255, 0, 0, 255) Nothing
                              , CompositeShape [ RegularPolygon (Point (0, 0)) 5 50 (0, 0, 255, 255) 1 (0, 0, 0, 255) Nothing

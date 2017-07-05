@@ -417,7 +417,7 @@ instance ToCanvasOperations Shape where
         where
           canvasText = toCanvasText text
           textFill = CT.TextFill (CT.CanvasColor screenFillColor)
-          textStroke = CT.TextStroke (round thick) (CT.CanvasColor screenStrokeColor)
+          textStroke = CT.TextStroke thick (CT.CanvasColor screenStrokeColor)
           screenStrokeColor = roundColor stroke
           screenFillColor = roundColor fill
           p' = roundPoint p
@@ -452,7 +452,7 @@ instance ToCanvasOperations Shape where
             Just (screenPathParts, startingPoint) = screenPathPartsM
             screenStrokeColor = roundColor $ strokeColor shape
             thick = strokeLineThickness shape
-            pathStroke = CT.PathStroke (round thick) (CT.CanvasColor screenStrokeColor)
+            pathStroke = CT.PathStroke thick (CT.CanvasColor screenStrokeColor)
 
           
 class ToScreenPathPart a where

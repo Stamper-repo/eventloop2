@@ -52,7 +52,7 @@ type ScaleUnit = Float
 type ScaleX = ScaleUnit
 type ScaleY = ScaleUnit
 
-type ScreenLineThickness = ScreenMetric
+type ScreenLineThickness = Float
 
 type FontFamily = [Char]
 type FontSize = Int -- In Pixels
